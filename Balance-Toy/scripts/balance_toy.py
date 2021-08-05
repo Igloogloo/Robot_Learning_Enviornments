@@ -21,18 +21,20 @@ cur_pos = np.array([0,0,0])
 def midpoint(ptA, ptB):
 	return ((ptA[0] + ptB[0]) * 0.5, (ptA[1] + ptB[1]) * 0.5)
 
-def go_to_start(arm):
+def go_to_start(arm, pose=None):
     os.system('rosservice call /j2s7s300_driver/in/home_arm ')
-
-    target = Pose()
-    target.position.x = .52067
-    target.position.y = .3734
-    target.position.z = .09771
-    target.orientation.x = .7127
-    target.orientation.y = -.0259
-    target.orientation.z = .7009
-    target.orientation.w = .0019
-    target.orientation.x, target.orientation.y, target.orientation.z = Transform.euler_from_quaternion([.7127, -.0259,.7009, .0019])
+    if pose is None:
+        target = Pose()
+        target.position.x = .52067
+        target.position.y = .3734
+        target.position.z = .09771
+        target.orientation.x = .7127
+        target.orientation.y = -.0259
+        target.orientation.z = .7009
+        target.orientation.w = .0019
+        target.orientation.x, target.orientation.y, target.orientation.z = Transform.euler_from_quaternion([.7127, -.0259,.7009, .0019])
+    else:
+        target = Pose()
 
     arm.move_to_ee_pose(target)
     go_to_relative([0,0,0,0,0,90])
@@ -81,28 +83,37 @@ class Camera():
             return np.array(self.img_queue)
 
 class BalanceToy():
-    def __init__(self, with_pixels=True, max_action=10, n_actions=3, reset_pose=None, episode_time=60):
+    def __init__(self, with_pixels=True, max_action=10, n_actions=3, reset_pose=None, episode_time=60, stack_size=4):
+        """
+        with_pixels = True to learn from overhead camera
+        max_action: the maximum degree the robot can rotate in xyz cartesian space
+        n_actions: xyz cartesian rotations (not advised to change)
+        reset_pose: cartesian pose and orientation for the robot to start in
+        episode_time: maximum time alloted for each episode
+        """
         rospy.init_node("ball_toy", disable_signals=True)
         self.arm = ArmMoveIt("j2s7s300_link_base")
         self.grip = Gripper()
         self.with_pixels = with_pixels
         self.max_action = max_action     
         self.reset_pose = reset_pose   
-        self.camera = Camera(stack_size=1)
+        self.stack_size = stack_size
+        self.episode_time = episode_time
+        self.camera = Camera(stack_size=self.stack_size)
         self.image_gen = self.camera.start()
         #self.camera.start()
         self.n_actions = n_actions
-        self.episode_time = 60
         if with_pixels:
             image = next(self.image_gen)
             self.observation_size = image.shape
         else:
+            # TODO: impliment non-pixel based version
             self.observation_size = 8
 
         self.cur_time = time.time()
         self.total_time = time.time()
 
-        go_to_start(self.arm)
+        go_to_start(self.arm, self.reset_pose)
 
         self.grip.open()
         print("Please place toy in upright position in gripper. Gripper will close in 5 seconds. WATCH FINGERS")
@@ -157,7 +168,7 @@ class BalanceToy():
 
         action = [0,0,0, action[0], action[1], action[2]]
 
-        if time.time() - self.cur_time <= 60:
+        if time.time() - self.cur_time <= self.episode_time:
             go_to_relative(action)
             observation = self.camera.get_image_stack()
             return observation, get_width(self.camera.get_image(), PIXELS_PER_METRIC), False, self.total_time.duration
@@ -168,6 +179,6 @@ class BalanceToy():
             return observation, get_width(self.camera.get_image(), PIXELS_PER_METRIC), True, self.total_time.duration
 
     def reset(self):
-        go_to_start(self.arm)
+        go_to_start(self.arm, self.reset_pose)
         self.cur_time = time.time()
         return self.camera.get_image_stack()
