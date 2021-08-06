@@ -26,9 +26,6 @@ def midpoint(ptA, ptB):
 # construct the argument parse and parse the arguments
 
 def get_width_image(frame, pixelsPerMetric=100):
-    """
-    Returns an image showing the dimensions of a detected blue obect.
-    """
     # Display the resulting frame
     #cv2.imshow('frame', frame)
     image = frame
@@ -309,3 +306,246 @@ def get_width(frame, pixelsPerMetric=pixelsPerMetric, max_width=4):
             return (dimA, dimB)
     
     return (max_width, max_width)
+
+def get_max_width(frame, pixelsPerMetric=pixelsPerMetric, max_width=4):
+    """
+        Returns width of blue object.
+        Max_width is returned if no object is fully detectable and therefore
+        no contours found. 
+    """
+    image = frame
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    lower_blue = np.array([60,110,100])
+    upper_blue = np.array([130,255,255])
+
+    mask = cv2.inRange(hsv, lower_blue, upper_blue)
+
+    res = cv2.bitwise_and(frame,frame, mask= mask)
+    gray = cv2.cvtColor(res, cv2.COLOR_BGR2GRAY)
+    gray = cv2.GaussianBlur(gray, (7, 7), 0)
+
+    edged = cv2.Canny(gray, 50, 100)
+    edged = cv2.dilate(edged, None, iterations=1)
+    edged = cv2.erode(edged, None, iterations=1)
+
+    cnts = cv2.findContours(edged.copy(), cv2.RETR_EXTERNAL,
+        cv2.CHAIN_APPROX_SIMPLE)
+    cnts = imutils.grab_contours(cnts)
+        
+    (cnts, _) = contours.sort_contours(cnts)
+
+    for c in cnts:
+        if cv2.contourArea(c) < 1650:
+            continue
+
+        global last_cnts
+        last_cnts = cnts
+
+        orig = image.copy()
+        box = cv2.minAreaRect(c)
+        box = cv2.cv.BoxPoints(box) if imutils.is_cv2() else cv2.boxPoints(box)
+        box = np.array(box, dtype="int")
+
+        box = perspective.order_points(box)
+        cv2.drawContours(orig, [box.astype("int")], -1, (0, 255, 0), 2)
+
+        for (x, y) in box:
+            cv2.circle(orig, (int(x), int(y)), 5, (0, 0, 255), -1)
+    
+        (tl, tr, br, bl) = box
+        (tltrX, tltrY) = midpoint(tl, tr)
+        (blbrX, blbrY) = midpoint(bl, br)
+
+        (tlblX, tlblY) = midpoint(tl, bl)
+        (trbrX, trbrY) = midpoint(tr, br)
+
+        cv2.circle(orig, (int(tltrX), int(tltrY)), 5, (255, 0, 0), -1)
+        cv2.circle(orig, (int(blbrX), int(blbrY)), 5, (255, 0, 0), -1)
+        cv2.circle(orig, (int(tlblX), int(tlblY)), 5, (255, 0, 0), -1)
+        cv2.circle(orig, (int(trbrX), int(trbrY)), 5, (255, 0, 0), -1)
+
+        cv2.line(orig, (int(tltrX), int(tltrY)), (int(blbrX), int(blbrY)),
+            (255, 0, 255), 2)
+        cv2.line(orig, (int(tlblX), int(tlblY)), (int(trbrX), int(trbrY)),
+            (255, 0, 255), 2)
+
+        dA = dist.euclidean((tltrX, tltrY), (blbrX, blbrY))
+        dB = dist.euclidean((tlblX, tlblY), (trbrX, trbrY))
+
+        dimA = dA / pixelsPerMetric
+        dimB = dB / pixelsPerMetric
+        
+        if dimA is not None and dimB is not None:
+            return np.max((dimA, dimB))
+
+    global last_cnts
+    cnts = last_cnts
+    if cnts is None:
+        return (max_width, max_width)
+    for c in cnts:
+        if cv2.contourArea(c) < 1650:
+            continue
+
+        orig = image.copy()
+        box = cv2.minAreaRect(c)
+        box = cv2.cv.BoxPoints(box) if imutils.is_cv2() else cv2.boxPoints(box)
+        box = np.array(box, dtype="int")
+
+        box = perspective.order_points(box)
+        cv2.drawContours(orig, [box.astype("int")], -1, (0, 255, 0), 2)
+
+        for (x, y) in box:
+            cv2.circle(orig, (int(x), int(y)), 5, (0, 0, 255), -1)
+    
+        (tl, tr, br, bl) = box
+        (tltrX, tltrY) = midpoint(tl, tr)
+        (blbrX, blbrY) = midpoint(bl, br)
+
+        (tlblX, tlblY) = midpoint(tl, bl)
+        (trbrX, trbrY) = midpoint(tr, br)
+
+        cv2.circle(orig, (int(tltrX), int(tltrY)), 5, (255, 0, 0), -1)
+        cv2.circle(orig, (int(blbrX), int(blbrY)), 5, (255, 0, 0), -1)
+        cv2.circle(orig, (int(tlblX), int(tlblY)), 5, (255, 0, 0), -1)
+        cv2.circle(orig, (int(trbrX), int(trbrY)), 5, (255, 0, 0), -1)
+
+        cv2.line(orig, (int(tltrX), int(tltrY)), (int(blbrX), int(blbrY)),
+            (255, 0, 255), 2)
+        cv2.line(orig, (int(tlblX), int(tlblY)), (int(trbrX), int(trbrY)),
+            (255, 0, 255), 2)
+
+        dA = dist.euclidean((tltrX, tltrY), (blbrX, blbrY))
+        dB = dist.euclidean((tlblX, tlblY), (trbrX, trbrY))
+
+        dimA = dA / pixelsPerMetric
+        dimB = dB / pixelsPerMetric
+        
+        if dimA is not None and dimB is not None:
+            return np.max((dimA, dimB))
+    
+    return max_width
+
+
+def get_total_width(frame, pixelsPerMetric=pixelsPerMetric, max_width=4):
+    """
+        Returns width of blue object.
+        Max_width is returned if no object is fully detectable and therefore
+        no contours found. 
+    """
+    image = frame
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    lower_blue = np.array([60,110,100])
+    upper_blue = np.array([130,255,255])
+
+    mask = cv2.inRange(hsv, lower_blue, upper_blue)
+
+    res = cv2.bitwise_and(frame,frame, mask= mask)
+    gray = cv2.cvtColor(res, cv2.COLOR_BGR2GRAY)
+    gray = cv2.GaussianBlur(gray, (7, 7), 0)
+
+    edged = cv2.Canny(gray, 50, 100)
+    edged = cv2.dilate(edged, None, iterations=1)
+    edged = cv2.erode(edged, None, iterations=1)
+
+    cnts = cv2.findContours(edged.copy(), cv2.RETR_EXTERNAL,
+        cv2.CHAIN_APPROX_SIMPLE)
+    cnts = imutils.grab_contours(cnts)
+        
+    (cnts, _) = contours.sort_contours(cnts)
+
+    for c in cnts:
+        if cv2.contourArea(c) < 1650:
+            continue
+
+        global last_cnts
+        last_cnts = cnts
+
+        orig = image.copy()
+        box = cv2.minAreaRect(c)
+        box = cv2.cv.BoxPoints(box) if imutils.is_cv2() else cv2.boxPoints(box)
+        box = np.array(box, dtype="int")
+
+        box = perspective.order_points(box)
+        cv2.drawContours(orig, [box.astype("int")], -1, (0, 255, 0), 2)
+
+        for (x, y) in box:
+            cv2.circle(orig, (int(x), int(y)), 5, (0, 0, 255), -1)
+    
+        (tl, tr, br, bl) = box
+        (tltrX, tltrY) = midpoint(tl, tr)
+        (blbrX, blbrY) = midpoint(bl, br)
+
+        (tlblX, tlblY) = midpoint(tl, bl)
+        (trbrX, trbrY) = midpoint(tr, br)
+
+        cv2.circle(orig, (int(tltrX), int(tltrY)), 5, (255, 0, 0), -1)
+        cv2.circle(orig, (int(blbrX), int(blbrY)), 5, (255, 0, 0), -1)
+        cv2.circle(orig, (int(tlblX), int(tlblY)), 5, (255, 0, 0), -1)
+        cv2.circle(orig, (int(trbrX), int(trbrY)), 5, (255, 0, 0), -1)
+
+        cv2.line(orig, (int(tltrX), int(tltrY)), (int(blbrX), int(blbrY)),
+            (255, 0, 255), 2)
+        cv2.line(orig, (int(tlblX), int(tlblY)), (int(trbrX), int(trbrY)),
+            (255, 0, 255), 2)
+
+        dA = dist.euclidean((tltrX, tltrY), (blbrX, blbrY))
+        dB = dist.euclidean((tlblX, tlblY), (trbrX, trbrY))
+
+        dimA = dA / pixelsPerMetric
+        dimB = dB / pixelsPerMetric
+        
+        if dimA is not None and dimB is not None:
+            try:
+                return np.sum((dimA, dimB))
+            except:
+                max_width*2
+
+    global last_cnts
+    cnts = last_cnts
+    if cnts is None:
+        return (max_width, max_width)
+    for c in cnts:
+        if cv2.contourArea(c) < 1650:
+            continue
+
+        orig = image.copy()
+        box = cv2.minAreaRect(c)
+        box = cv2.cv.BoxPoints(box) if imutils.is_cv2() else cv2.boxPoints(box)
+        box = np.array(box, dtype="int")
+
+        box = perspective.order_points(box)
+        cv2.drawContours(orig, [box.astype("int")], -1, (0, 255, 0), 2)
+
+        for (x, y) in box:
+            cv2.circle(orig, (int(x), int(y)), 5, (0, 0, 255), -1)
+    
+        (tl, tr, br, bl) = box
+        (tltrX, tltrY) = midpoint(tl, tr)
+        (blbrX, blbrY) = midpoint(bl, br)
+
+        (tlblX, tlblY) = midpoint(tl, bl)
+        (trbrX, trbrY) = midpoint(tr, br)
+
+        cv2.circle(orig, (int(tltrX), int(tltrY)), 5, (255, 0, 0), -1)
+        cv2.circle(orig, (int(blbrX), int(blbrY)), 5, (255, 0, 0), -1)
+        cv2.circle(orig, (int(tlblX), int(tlblY)), 5, (255, 0, 0), -1)
+        cv2.circle(orig, (int(trbrX), int(trbrY)), 5, (255, 0, 0), -1)
+
+        cv2.line(orig, (int(tltrX), int(tltrY)), (int(blbrX), int(blbrY)),
+            (255, 0, 255), 2)
+        cv2.line(orig, (int(tlblX), int(tlblY)), (int(trbrX), int(trbrY)),
+            (255, 0, 255), 2)
+
+        dA = dist.euclidean((tltrX, tltrY), (blbrX, blbrY))
+        dB = dist.euclidean((tlblX, tlblY), (trbrX, trbrY))
+
+        dimA = dA / pixelsPerMetric
+        dimB = dB / pixelsPerMetric
+        
+        if dimA is not None and dimB is not None:
+            try:
+                return np.sum((dimA, dimB))
+            except:
+                max_width*2
+    
+    return max_width*2
