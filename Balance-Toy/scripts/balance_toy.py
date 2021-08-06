@@ -175,12 +175,12 @@ class BalanceToy():
         global cur_pos
         cur_pos += action
         for i in range(len(cur_pos)):
-            if cur_pos[i] < -90:
-                cur_pos[i] = -90
-                action[i] = -90
-            if cur_pos[i] > 90:
-                cur_pos[i] = 90
-                action[i] = 90
+            if cur_pos[i] <= -30:
+                cur_pos[i] = -30
+                action[i] = 0
+            if cur_pos[i] >= 30:
+                cur_pos[i] = 30
+                action[i] = 0
 
         action = [0,0,0, action[0], action[1], action[2]]
 
