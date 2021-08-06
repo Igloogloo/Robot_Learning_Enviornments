@@ -9,7 +9,7 @@ import numpy as np
 import argparse
 import imutils
 from continuous_cartesian import go_to_relative, go_to_absalute
-from measure_width_utils import get_width_image, get_width
+from measure_width_utils import get_width_image, get_width, get_max_width, get_total_width
 from hlpr_manipulation_utils.arm_moveit2 import ArmMoveIt
 from hlpr_manipulation_utils.manipulator import Gripper
 import hlpr_manipulation_utils.transformations as Transform
@@ -21,8 +21,9 @@ cur_pos = np.array([0,0,0])
 def midpoint(ptA, ptB):
 	return ((ptA[0] + ptB[0]) * 0.5, (ptA[1] + ptB[1]) * 0.5)
 
-def go_to_start(arm, pose=None):
-    os.system('rosservice call /j2s7s300_driver/in/home_arm ')
+def go_to_start(arm, pose=None, start=False):
+    if start is True:
+        os.system('rosservice call /j2s7s300_driver/in/home_arm ')
     if pose is None:
         target = Pose()
         target.position.x = .52067
@@ -37,11 +38,22 @@ def go_to_start(arm, pose=None):
         target = Pose()
 
     arm.move_to_ee_pose(target)
-    go_to_relative([0,0,0,0,0,90])
+    orig = arm.get_FK()
+    print(arm.get_FK())
+    time.sleep(3)
+    print(orig[0].pose.orientation.z)
+    i = 1
+    #while orig[0].pose.orientation.z**2 - arm.get_FK()[0].pose.orientation.z**2 < .0001:
+    #    if i > 0:
+    go_to_relative([0,0,0,0,0,270])
+        #else:
+        #    go_to_relative([0,0,0,0,0,-270])
+        #i = -i
+    print(arm.get_FK())
 
 class Camera():
     def __init__(self, stack_size=4):
-        self.vid = cv2.VideoCapture(0)
+        self.vid = cv2.VideoCapture(-1)
         self.stack_size = stack_size
         self.img_queue = []
     def start(self):
@@ -105,20 +117,23 @@ class BalanceToy():
         self.n_actions = n_actions
         if with_pixels:
             image = next(self.image_gen)
-            self.observation_size = image.shape
+            image_list = np.array([image for _ in range(self.stack_size)])
+            self.observation_size = image_list.shape
         else:
             # TODO: impliment non-pixel based version
             self.observation_size = 8
 
-        self.cur_time = time.time()
-        self.total_time = time.time()
+        #self.grip.open()
 
-        go_to_start(self.arm, self.reset_pose)
+        go_to_start(self.arm, self.reset_pose, start=True)
 
         self.grip.open()
         print("Please place toy in upright position in gripper. Gripper will close in 5 seconds. WATCH FINGERS")
         time.sleep(5)
         self.grip.close(block=False)
+
+        self.cur_time = time.time()
+        self.total_time = time.time()
 
     def render(self, pixels_only=False, show_width=True):
         """
@@ -152,8 +167,9 @@ class BalanceToy():
         Returns:
             observation, reward, done, total time in enviornment
         """
-        if not np.shape(action) == self.n_actions:
-            raise ValueError("Action shpae dimensionality mismatch: recieved %x, need %s" % (action.shape, self.n_actions))
+        print(np.shape(action)[0], self.n_actions)
+        if not np.shape(action)[0] == self.n_actions:
+            raise ValueError("Action shpae dimensionality mismatch: recieved %x, need %s" % (np.shape(action)[0], self.n_actions))
         
         action = np.array(action)
         global cur_pos
@@ -171,14 +187,16 @@ class BalanceToy():
         if time.time() - self.cur_time <= self.episode_time:
             go_to_relative(action)
             observation = self.camera.get_image_stack()
-            return observation, get_width(self.camera.get_image(), PIXELS_PER_METRIC), False, self.total_time.duration
+            return observation, get_total_width(self.camera.get_image(), PIXELS_PER_METRIC), False, time.time()-self.total_time
         else:
             go_to_relative(action)
             observation = self.camera.get_image_stack()
             self.reset()
-            return observation, get_width(self.camera.get_image(), PIXELS_PER_METRIC), True, self.total_time.duration
+            return observation, get_total_width(self.camera.get_image(), PIXELS_PER_METRIC), True, time.time()-self.total_time
 
     def reset(self):
         go_to_start(self.arm, self.reset_pose)
         self.cur_time = time.time()
+        global cur_pos
+        cur_pos = np.array([0,0,0])
         return self.camera.get_image_stack()
