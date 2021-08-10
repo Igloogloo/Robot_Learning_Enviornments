@@ -16,7 +16,7 @@ import hlpr_manipulation_utils.transformations as Transform
 from geometry_msgs.msg import Pose
 
 PIXELS_PER_METRIC = 100
-cur_pos = np.array([0,0,0])
+cur_pos = np.array([0.0,0.0,0.0])
 
 def midpoint(ptA, ptB):
 	return ((ptA[0] + ptB[0]) * 0.5, (ptA[1] + ptB[1]) * 0.5)
@@ -94,6 +94,7 @@ class Camera():
             self.img_queue.append(image)
             return np.array(self.img_queue)
 
+
 class BalanceToy():
     def __init__(self, with_pixels=True, max_action=10, n_actions=3, reset_pose=None, episode_time=60, stack_size=4):
         """
@@ -115,13 +116,13 @@ class BalanceToy():
         self.image_gen = self.camera.start()
         #self.camera.start()
         self.n_actions = n_actions
+        self.action_space = n_actions
         if with_pixels:
             image = next(self.image_gen)
             image_list = np.array([image for _ in range(self.stack_size)])
-            self.observation_size = image_list.shape
+            self.observation_space = image_list.shape
         else:
-            # TODO: impliment non-pixel based version
-            self.observation_size = 8
+            self.observation_space = [9]
 
         #self.grip.open()
 
@@ -134,6 +135,11 @@ class BalanceToy():
 
         self.cur_time = time.time()
         self.total_time = time.time()
+
+    def get_discrete_obs(self):
+        joints = self.arm.robot.get_current_state().joint_state.position[:7]
+        width = get_width(self.camera.get_image(), PIXELS_PER_METRIC)
+        return np.concatenate((joints, width))
 
     def render(self, pixels_only=False, show_width=True):
         """
@@ -167,7 +173,8 @@ class BalanceToy():
         Returns:
             observation, reward, done, total time in enviornment
         """
-        print(np.shape(action)[0], self.n_actions)
+        #print(np.shape(action)[0], self.n_actions)
+        #print(self.arm.robot.get_current_state().joint_state.position[:7])
         if not np.shape(action)[0] == self.n_actions:
             raise ValueError("Action shpae dimensionality mismatch: recieved %x, need %s" % (np.shape(action)[0], self.n_actions))
         
@@ -175,22 +182,29 @@ class BalanceToy():
         global cur_pos
         cur_pos += action
         for i in range(len(cur_pos)):
-            if cur_pos[i] <= -30:
-                cur_pos[i] = -30
-                action[i] = 0
-            if cur_pos[i] >= 30:
-                cur_pos[i] = 30
-                action[i] = 0
+            if cur_pos[i] <= -20.0:
+                cur_pos[i] = -20.0
+                action[i] = 0.0
+            if cur_pos[i] >= 20.0:
+                cur_pos[i] = 20.0
+                action[i] = 0.0
 
-        action = [0,0,0, action[0], action[1], action[2]]
+
+        action = [0.0,0.0,0.0, action[0], action[1], action[2]]
 
         if time.time() - self.cur_time <= self.episode_time:
             go_to_relative(action)
-            observation = self.camera.get_image_stack()
+            if self.with_pixels:
+                observation = self.camera.get_image_stack()
+            else:
+                observation = self.get_discrete_obs()
             return observation, get_total_width(self.camera.get_image(), PIXELS_PER_METRIC), False, time.time()-self.total_time
         else:
             go_to_relative(action)
-            observation = self.camera.get_image_stack()
+            if self.with_pixels:
+                observation = self.camera.get_image_stack()
+            else:
+                observation = self.get_discrete_obs()
             self.reset()
             return observation, get_total_width(self.camera.get_image(), PIXELS_PER_METRIC), True, time.time()-self.total_time
 
@@ -198,5 +212,8 @@ class BalanceToy():
         go_to_start(self.arm, self.reset_pose)
         self.cur_time = time.time()
         global cur_pos
-        cur_pos = np.array([0,0,0])
-        return self.camera.get_image_stack()
+        cur_pos = np.array([0.0,0.0,0.0])
+        if self.with_pixels:
+            return self.camera.get_image_stack()
+        else:
+            return self.get_discrete_obs()
