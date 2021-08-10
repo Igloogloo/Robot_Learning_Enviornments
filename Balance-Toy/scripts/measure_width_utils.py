@@ -376,12 +376,12 @@ def get_max_width(frame, pixelsPerMetric=pixelsPerMetric, max_width=4):
         dimB = dB / pixelsPerMetric
         
         if dimA is not None and dimB is not None:
-            return np.max((dimA, dimB))
+            return -np.max([dimA, dimB])
 
     global last_cnts
     cnts = last_cnts
     if cnts is None:
-        return (max_width, max_width)
+        return -max_width
     for c in cnts:
         if cv2.contourArea(c) < 1650:
             continue
@@ -421,9 +421,9 @@ def get_max_width(frame, pixelsPerMetric=pixelsPerMetric, max_width=4):
         dimB = dB / pixelsPerMetric
         
         if dimA is not None and dimB is not None:
-            return np.max((dimA, dimB))
+            return -np.max([dimA, dimB])
     
-    return max_width
+    return -max_width
 
 
 def get_total_width(frame, pixelsPerMetric=pixelsPerMetric, max_width=4):
@@ -496,14 +496,14 @@ def get_total_width(frame, pixelsPerMetric=pixelsPerMetric, max_width=4):
         
         if dimA is not None and dimB is not None:
             try:
-                return np.sum((dimA, dimB))
+                return -np.sum([dimA, dimB])
             except:
-                max_width*2
+                -max_width*2
 
     global last_cnts
     cnts = last_cnts
     if cnts is None:
-        return (max_width, max_width)
+        return -max_width*2
     for c in cnts:
         if cv2.contourArea(c) < 1650:
             continue
@@ -544,8 +544,8 @@ def get_total_width(frame, pixelsPerMetric=pixelsPerMetric, max_width=4):
         
         if dimA is not None and dimB is not None:
             try:
-                return np.sum((dimA, dimB))
+                return -np.sum([dimA, dimB])
             except:
-                max_width*2
+                -max_width*2
     
-    return max_width*2
+    return -max_width*2
