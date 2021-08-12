@@ -39,9 +39,9 @@ def go_to_start(arm, pose=None, start=False):
 
     arm.move_to_ee_pose(target)
     orig = arm.get_FK()
-    print(arm.get_FK())
+    #print(arm.get_FK())
     time.sleep(3)
-    print(orig[0].pose.orientation.z)
+    #print(orig[0].pose.orientation.z)
     i = 1
     #while orig[0].pose.orientation.z**2 - arm.get_FK()[0].pose.orientation.z**2 < .0001:
     #    if i > 0:
@@ -49,7 +49,6 @@ def go_to_start(arm, pose=None, start=False):
         #else:
         #    go_to_relative([0,0,0,0,0,-270])
         #i = -i
-    print(arm.get_FK())
 
 class Camera():
     def __init__(self, stack_size=4):
@@ -96,7 +95,7 @@ class Camera():
 
 
 class BalanceToy():
-    def __init__(self, with_pixels=True, max_action=10, n_actions=3, reset_pose=None, episode_time=60, stack_size=4):
+    def __init__(self, with_pixels=True, max_action=5, n_actions=3, reset_pose=None, episode_time=60, stack_size=4):
         """
         with_pixels = True to learn from overhead camera
         max_action: the maximum degree the robot can rotate in xyz cartesian space
@@ -126,12 +125,12 @@ class BalanceToy():
 
         #self.grip.open()
 
-        go_to_start(self.arm, self.reset_pose, start=True)
-
-        self.grip.open()
+        go_to_start(self.arm, self.reset_pose, start=False)
+        
+        """self.grip.open()
         print("Please place toy in upright position in gripper. Gripper will close in 5 seconds. WATCH FINGERS")
         time.sleep(5)
-        self.grip.close(block=False)
+        self.grip.close(block=False)"""
 
         self.cur_time = time.time()
         self.total_time = time.time()
@@ -177,7 +176,10 @@ class BalanceToy():
         #print(self.arm.robot.get_current_state().joint_state.position[:7])
         if not np.shape(action)[0] == self.n_actions:
             raise ValueError("Action shpae dimensionality mismatch: recieved %x, need %s" % (np.shape(action)[0], self.n_actions))
-        
+        if np.isnan(action).any():
+            print("NaN DETECTEED")
+            action = np.zeros_like(action)
+
         action = np.array(action)
         global cur_pos
         cur_pos += action
@@ -192,15 +194,20 @@ class BalanceToy():
 
         action = [0.0,0.0,0.0, action[0], action[1], action[2]]
 
+        print(action, "ACTION")
+        print(cur_pos, "CURENT POSE")
+
         if time.time() - self.cur_time <= self.episode_time:
-            go_to_relative(action)
+            if not np.array_equal(action, np.zeros_like(action)):
+                go_to_relative(action)
             if self.with_pixels:
                 observation = self.camera.get_image_stack()
             else:
                 observation = self.get_discrete_obs()
             return observation, get_total_width(self.camera.get_image(), PIXELS_PER_METRIC), False, time.time()-self.total_time
         else:
-            go_to_relative(action)
+            if not np.array_equal(action, np.zeros_like(action)):
+                go_to_relative(action)
             if self.with_pixels:
                 observation = self.camera.get_image_stack()
             else:
@@ -217,3 +224,4 @@ class BalanceToy():
             return self.camera.get_image_stack()
         else:
             return self.get_discrete_obs()
+        rospy.spin()
