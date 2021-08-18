@@ -98,7 +98,7 @@ class ActorNetwork(nn.Module):
         self.checkpoint_dir = chkpt_dir
         self.checkpoint_file = os.path.join(self.checkpoint_dir, name+'_sac')
         self.max_action = max_action
-        self.reparam_noise = 1e-6
+        self.reparam_noise = 1e-5
 
         self.fc1 = nn.Linear(self.input_dims, self.fc1_dims)
         self.fc2 = nn.Linear(self.fc1_dims, self.fc2_dims)
@@ -134,7 +134,6 @@ class ActorNetwork(nn.Module):
         log_probs = probabilities.log_prob(actions)
         log_probs -= torch.log(1-action.pow(2)+self.reparam_noise)
         log_probs = log_probs.sum(1, keepdim=True)
-
         return action, log_probs
     
     def get_dist(self, state, with_grad = False):

@@ -95,7 +95,7 @@ class Camera():
 
 
 class BalanceToy():
-    def __init__(self, with_pixels=True, max_action=5, n_actions=3, reset_pose=None, episode_time=60, stack_size=4):
+    def __init__(self, with_pixels=True, max_action=1, n_actions=3, reset_pose=None, episode_time=60, stack_size=4, max_action_true=10):
         """
         with_pixels = True to learn from overhead camera
         max_action: the maximum degree the robot can rotate in xyz cartesian space
@@ -107,7 +107,8 @@ class BalanceToy():
         self.arm = ArmMoveIt("j2s7s300_link_base")
         self.grip = Gripper()
         self.with_pixels = with_pixels
-        self.max_action = max_action     
+        self.max_action = max_action  
+        self.max_action_true = max_action_true   
         self.reset_pose = reset_pose   
         self.stack_size = stack_size
         self.episode_time = episode_time
@@ -180,16 +181,40 @@ class BalanceToy():
             print("NaN DETECTEED")
             action = np.zeros_like(action)
 
-        action = np.array(action)
+        action = np.array(action)*self.max_action_true
+        print(action)
         global cur_pos
-        cur_pos += action
-        for i in range(len(cur_pos)):
-            if cur_pos[i] <= -20.0:
-                cur_pos[i] = -20.0
-                action[i] = 0.0
-            if cur_pos[i] >= 20.0:
-                cur_pos[i] = 20.0
-                action[i] = 0.0
+        for i in range(len(action)):
+            if i == 1:
+                if cur_pos[i] <= -50.0:
+                    cur_pos[i] = -50.0
+                    if action[i] < 0:
+                        action[i] = 0.0
+                    else:
+                        action = min(action[i], 60)
+                if cur_pos[i] >= 50.0:
+                    cur_pos[i] = 50.0
+                    if action[i]>0:
+                        action[i] = 0.0
+                    else:
+                        action[i] = max(action[i], -60)
+            else:
+                if cur_pos[i] <= -70.0:
+                    cur_pos[i] = -70.0
+                    if action[i] < 0:
+                        action[i] = 0.0
+                    else:
+                        action = min(action[i], 70)
+                if cur_pos[i] >= 70.0:
+                    cur_pos[i] = 70.0
+                    if action[i]>0:
+                        action[i] = 0.0
+                    else:
+                        action[i] = max(action[i], -70)
+
+        for i in range(len(action)):
+            if action[i] > 1 or action[i] < -1:
+                cur_pos += action
 
 
         action = [0.0,0.0,0.0, action[0], action[1], action[2]]
