@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import cv2, os, time 
+import cv2, os, time, math
 import rospy
 from scipy.spatial import distance as dist
 from imutils import perspective
@@ -9,7 +9,7 @@ import numpy as np
 import argparse
 import imutils
 from continuous_cartesian import go_to_relative, go_to_absalute
-from measure_width_utils import get_width_image, get_width, get_max_width, get_total_width
+from measure_width_utils import get_width_image, get_width, get_max_width, get_total_width, get_reward, get_ball_size, get_obj_pos
 from hlpr_manipulation_utils.arm_moveit2 import ArmMoveIt
 from hlpr_manipulation_utils.manipulator import Gripper
 import hlpr_manipulation_utils.transformations as Transform
@@ -122,7 +122,7 @@ class BalanceToy():
             image_list = np.array([image for _ in range(self.stack_size)])
             self.observation_space = image_list.shape
         else:
-            self.observation_space = [9]
+            self.observation_space = [18]
 
         #self.grip.open()
 
@@ -139,7 +139,11 @@ class BalanceToy():
     def get_discrete_obs(self):
         joints = self.arm.robot.get_current_state().joint_state.position[:7]
         width = get_width(self.camera.get_image(), PIXELS_PER_METRIC)
-        return np.concatenate((joints, width))
+        ball_size = get_ball_size(self.camera.get_image())
+        arr = np.concatenate((joints, width))
+        obj_pos = get_obj_pos(self.camera.get_image())
+        arr = np.concatenate((arr, obj_pos))
+        return np.concatenate((arr, [ball_size]))
 
     def render(self, pixels_only=False, show_width=True):
         """
@@ -181,41 +185,69 @@ class BalanceToy():
             print("NaN DETECTEED")
             action = np.zeros_like(action)
 
-        action = np.array(action)*self.max_action_true
-        print(action)
+        action = np.tanh(action)*self.max_action_true
+
         global cur_pos
         for i in range(len(action)):
             if i == 1:
-                if cur_pos[i] <= -50.0:
-                    cur_pos[i] = -50.0
-                    if action[i] < 0:
-                        action[i] = 0.0
-                    else:
-                        action = min(action[i], 60)
-                if cur_pos[i] >= 50.0:
-                    cur_pos[i] = 50.0
-                    if action[i]>0:
-                        action[i] = 0.0
-                    else:
-                        action[i] = max(action[i], -60)
-            else:
-                if cur_pos[i] <= -70.0:
-                    cur_pos[i] = -70.0
-                    if action[i] < 0:
-                        action[i] = 0.0
-                    else:
-                        action = min(action[i], 70)
-                if cur_pos[i] >= 70.0:
-                    cur_pos[i] = 70.0
-                    if action[i]>0:
-                        action[i] = 0.0
-                    else:
-                        action[i] = max(action[i], -70)
+                if action[i] < 0:
+                    if cur_pos[i] + action[i] <= -15:
+                        print("NEG 50")
+                        action[i] = -abs(-15-cur_pos[i])
+                if action[i]>=0:
+                    if cur_pos[i] + action[i] >= 15:
+                        print("POS 50")
+                        action[i] = abs(15-cur_pos[i])
+            elif i == 2:
+                if action[i] < 0:
+                    if cur_pos[i] + action[i] <= -20:
+                        print("NEG 50")
+                        action[i] = -abs(-20-cur_pos[i])
+                if action[i]>=0:
+                    if cur_pos[i] + action[i] >= 20:
+                        print("POS 50")
+                        action[i] = abs(20-cur_pos[i])
+            elif i==0:
+                if action[i] < 0:
+                    if cur_pos[i] + action[i] <= -40:
+                        print("Neg 70")
+                        action[i] = -abs(-40-cur_pos[i])
+                if action[i]>=0:
+                    if cur_pos[i] + action[i] >= 40:
+                        print("POS 70")
+                        action[i] = abs(40-cur_pos[i])
 
+        
         for i in range(len(action)):
-            if action[i] > 1 or action[i] < -1:
-                cur_pos += action
+            if i == 1:
+                if cur_pos[i] <= -15.0:
+                    cur_pos[i] = -15.0
+                    if action[i] <= 0:
+                        action[i] = 0.0
+                if cur_pos[i] >= 15.0:
+                    cur_pos[i] = 15.0
+                    if action[i]>0:
+                        action[i] = 0.0
+            elif i ==2:
+                if cur_pos[i] <= -20.0:
+                    cur_pos[i] = -20.0
+                    if action[i] < 0:
+                        action[i] = 0.0
+                if cur_pos[i] >= 20.0:
+                    cur_pos[i] = 20.0
+                    if action[i]>0:
+                        action[i] = 0.0
+            else:
+                if cur_pos[i] <= -40.0:
+                    cur_pos[i] = -40.0
+                    if action[i] < 0:
+                        action[i] = 0.0
+                if cur_pos[i] >= 40.0:
+                    cur_pos[i] = 40.0
+                    if action[i]>0:
+                        action[i] = 0.0
 
+        cur_pos += action
 
         action = [0.0,0.0,0.0, action[0], action[1], action[2]]
 
@@ -229,7 +261,7 @@ class BalanceToy():
                 observation = self.camera.get_image_stack()
             else:
                 observation = self.get_discrete_obs()
-            return observation, get_total_width(self.camera.get_image(), PIXELS_PER_METRIC), False, time.time()-self.total_time
+            return observation, get_reward(self.camera.get_image(), PIXELS_PER_METRIC), False, time.time()-self.total_time
         else:
             if not np.array_equal(action, np.zeros_like(action)):
                 go_to_relative(action)
@@ -238,7 +270,7 @@ class BalanceToy():
             else:
                 observation = self.get_discrete_obs()
             self.reset()
-            return observation, get_total_width(self.camera.get_image(), PIXELS_PER_METRIC), True, time.time()-self.total_time
+            return observation, get_reward(self.camera.get_image(), PIXELS_PER_METRIC), True, time.time()-self.total_time
 
     def reset(self):
         go_to_start(self.arm, self.reset_pose)
