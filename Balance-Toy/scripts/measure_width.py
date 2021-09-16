@@ -7,13 +7,28 @@ from imutils import contours
 import numpy as np
 import argparse
 import imutils
+
+def imcrop(img, x1,x2,y1,y2):
+   #x1, y1, x2, y2 = bbox
+   if x1 < 0 or y1 < 0 or x2 > img.shape[1] or y2 > img.shape[0]:
+        img, x1, x2, y1, y2 = pad_img_to_fit_bbox(img, x1, x2, y1, y2)
+   return img[y1:y2, x1:x2, :]
+
+def pad_img_to_fit_bbox(img, x1, x2, y1, y2):
+    img = cv2.copyMakeBorder(img, - min(0, y1), max(y2 - img.shape[0], 0),
+                            -min(0, x1), max(x2 - img.shape[1], 0),cv2.BORDER_REPLICATE)
+    y2 += -min(0, y1)
+    y1 += -min(0, y1)
+    x2 += -min(0, x1)
+    x1 += -min(0, x1)
+    return img
   
 def midpoint(ptA, ptB):
 	return ((ptA[0] + ptB[0]) * 0.5, (ptA[1] + ptB[1]) * 0.5)
 # construct the argument parse and parse the arguments
 
 # define a video capture object
-vid = cv2.VideoCapture(-1)
+vid = cv2.VideoCapture(3)
 
 pixelsPerMetric = 100
 
@@ -100,6 +115,8 @@ while(True):
         box = cv2.minAreaRect(c)
         box = cv2.cv.BoxPoints(box) if imutils.is_cv2() else cv2.boxPoints(box)
         box = np.array(box, dtype="int")
+        cropped = imcrop(orig, box.min(axis=0)[0], box.max(axis=0)[0], box.min(axis=0)[1], box.max(axis=0)[1])
+        #cropped = imcrop(img=orig, bbox=box)
         # order the points in the contour such that they appear
         # in top-left, top-right, bottom-right, and bottom-left
         # order, then draw the outline of the rotated bounding
@@ -153,7 +170,7 @@ while(True):
             (int(trbrX + 10), int(trbrY)), cv2.FONT_HERSHEY_SIMPLEX,
             0.65, (255, 255, 255), 2)
         # show the output image
-        cv2.imshow("Image", orig)
+        cv2.imshow("Image", cropped)
         #cv2.waitKey(0)
     #print("I am running")
     if cv2.waitKey(1) & 0xFF == ord('q'):
