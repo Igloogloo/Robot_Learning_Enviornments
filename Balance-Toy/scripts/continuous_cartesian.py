@@ -1,8 +1,7 @@
 #! /usr/bin/env python
-
 """A helper program to test cartesian goals for the JACO and MICO arms."""
 
-import roslib; roslib.load_manifest('kinova_demo')
+import roslib
 import rospy
 
 import sys
@@ -12,10 +11,11 @@ import actionlib
 import kinova_msgs.msg
 import std_msgs.msg
 import geometry_msgs.msg
-
-
+import moveit_msgs.srv
+from tf.transformations import euler_from_quaternion
 import math
 import argparse
+from kinova_msgs.srv import AddPoseToCartesianTrajectory, ClearTrajectories
 
 """ Global variable """
 arm_joint_number = 0
@@ -26,11 +26,17 @@ finger_maxTurn = 6800  # max thread rotation for one finger
 currentCartesianCommand = [0.212322831154, -0.257197618484, 0.509646713734, 1.63771402836, 1.11316478252, 0.134094119072] # default home in unit mq
 
 
-def cartesian_pose_client(position, orientation):
+def cartesian_pose_client(position, orientation, rad_pose, collision_check=False):
     """Send a cartesian goal to the action server."""
     action_address = '/' + prefix + 'driver/pose_action/tool_pose'
     client = actionlib.SimpleActionClient(action_address, kinova_msgs.msg.ArmPoseAction)
     client.wait_for_server()
+
+    rospy.wait_for_service('/j2s7s300_driver/in/add_pose_to_Cartesian_trajectory')
+    cartesian_serv = rospy.ServiceProxy('/j2s7s300_driver/in/add_pose_to_Cartesian_trajectory', AddPoseToCartesianTrajectory)
+    rospy.wait_for_service('/j2s7s300_driver/in/clear_trajectories')
+    cartesian_clear = rospy.ServiceProxy('/j2s7s300_driver/in/clear_trajectories', ClearTrajectories)
+
 
     goal = kinova_msgs.msg.ArmPoseGoal()
     goal.pose.header = std_msgs.msg.Header(frame_id=(prefix + 'link_base'))
@@ -39,16 +45,66 @@ def cartesian_pose_client(position, orientation):
     goal.pose.pose.orientation = geometry_msgs.msg.Quaternion(
         x=orientation[0], y=orientation[1], z=orientation[2], w=orientation[3])
 
+    euler_angle = [orientation[0],orientation[1],orientation[2],orientation[3]]
+    #goal_list = [position[0],position[1], position[2], euler_angle[0], euler_angle[1],euler_angle[2]]
+    goal_list = rad_pose
+    #print(euler_angle, "AAAAAA")
     # print('goal.pose in client 1: {}'.format(goal.pose.pose)) # debug
 
-    client.send_goal(goal)
+    if collision_check:
+        rospy.wait_for_service('compute_ik')
+        compute_ik = rospy.ServiceProxy('compute_ik', moveit_msgs.srv.GetPositionIK)
 
-    if client.wait_for_result(rospy.Duration(10.0)):
+        goal_stamped = geometry_msgs.msg.PoseStamped()
+        goal_stamped.header = goal.pose.header
+        goal_stamped.pose = goal.pose.pose
+
+        msgs_request = moveit_msgs.msg.PositionIKRequest()
+        msgs_request.group_name = "arm"
+        msgs_request.pose_stamped = goal_stamped
+        msgs_request.robot_state.is_diff = True
+        msgs_request.timeout.secs = 2
+        msgs_request.avoid_collisions = True
+        msgs_request.ik_link_names = ["j2s7s300_joint_1", "j2s7s300_joint_2", "j2s7s300_joint_3", "j2s7s300_joint_4",
+                        "j2s7s300_joint_5", "j2s7s300_joint_6", "j2s7s300_joint_7"]
+
+        # msgs_request.robot_state = self.robot.get_current_state()
+        try:
+            jointAngle=compute_ik(msgs_request)
+            ans=list(jointAngle.solution.joint_state.position)[2:9]
+            ans = simplify_joints(ans)
+            if jointAngle.error_code.val == -31:
+                print('No IK solution')
+                return None
+            if (jointAngle.error_code.val == -12 or jointAngle.error_code.val==-10):
+                print("Goal or current position is in collision")
+                return None
+                
+        except rospy.ServiceException as e:
+            print("Service call failed: %s"%e)
+
+    #cartesian_serv(0.144489221573,-0.462273001671, 0.40168389678,1.6176496614678213, -0.20928853117355628, 1.111220579362625)
+    try:
+        #cartesian_clear()
+        #cartesian_serv(0.044489221573,-0.462273001671, 0.40168389678,1.6176496614678213, -0.20928853117355628, 1.111220579362625)
+        
+        cartesian_serv(goal_list[0], goal_list[1], goal_list[2],goal_list[3],goal_list[4],goal_list[5])
+        #cartesian_serv(goal_list[0], goal_list[1], goal_list[2],goal_list[3],goal_list[4],goal_list[5])
+        #cartesian_serv(goal_list[0], goal_list[1], goal_list[2],goal_list[3],goal_list[4],goal_list[5])
+        #cartesian_serv(goal_list[0], goal_list[1], goal_list[2],goal_list[3],goal_list[4],goal_list[5])
+        #cartesian_clear()
+    
+    except rospy.ServiceException as e:
+        print("Cartesian service call failed: %s"%e)
+    
+    """client.send_goal(goal)
+
+    if client.wait_for_result(rospy.Duration(2.0)):
         return client.get_result()
     else:
         client.cancel_all_goals()
         print('        the cartesian action timed-out')
-        return None
+        return None"""
 
 
 def QuaternionNorm(Q_raw):
@@ -99,9 +155,9 @@ def getcurrentCartesianCommand(prefix_):
     # wait to get current position
     topic_address = '/' + prefix_ + 'driver/out/cartesian_command'
     rospy.Subscriber(topic_address, kinova_msgs.msg.KinovaPose, setcurrentCartesianCommand)
-    print(prefix)
+    #print(prefix)
     rospy.wait_for_message(topic_address, kinova_msgs.msg.KinovaPose)
-    print 'position listener obtained message for Cartesian pose. '
+    #print 'position listener obtained message for Cartesian pose. '
 
 
 def setcurrentCartesianCommand(feedback):
@@ -216,21 +272,18 @@ def verboseParser(verbose, pose_mq_):
     if verbose:
         orientation_rad = Quaternion2EulerXYZ(orientation_q)
         orientation_deg = list(map(math.degrees, orientation_rad))
-        print('Cartesian position is: {}'.format(position_))
+        """print('Cartesian position is: {}'.format(position_))
         print('Cartesian orientation in Quaternion is: ')
         print('qx {:0.3f}, qy {:0.3f}, qz {:0.3f}, qw {:0.3f}'.format(orientation_q[0], orientation_q[1], orientation_q[2], orientation_q[3]))
         print('Cartesian orientation in Euler-XYZ(radian) is: ')
         print('tx {:0.3f}, ty {:0.3f}, tz {:0.3f}'.format(orientation_rad[0], orientation_rad[1], orientation_rad[2]))
         print('Cartesian orientation in Euler-XYZ(degree) is: ')
-        print('tx {:3.1f}, ty {:3.1f}, tz {:3.1f}'.format(orientation_deg[0], orientation_deg[1], orientation_deg[2]))
+        print('tx {:3.1f}, ty {:3.1f}, tz {:3.1f}'.format(orientation_deg[0], orientation_deg[1], orientation_deg[2]))"""
 
-def go_to_relative(pose):
+def go_to_relative(pose, collision_check=False):
     kinova_robotTypeParser("j2s7s300")
-    try:
-        rospy.init_node(prefix + 'pose_action_client')
-    except:
-        pass
-    
+    rospy.init_node(prefix + 'pose_action_client')
+
     """if args.unit == 'mq':
         if len(args.pose_value) != 7:
             print('Number of input values {} is not equal to 7 (3 position + 4 Quaternion).'.format(len(args.pose_value)))
@@ -248,14 +301,14 @@ def go_to_relative(pose):
         #pose = [-0.01, 0.001, 0.0, 0.0, 0.0, 0.0]
 
     pose_mq, pose_mdeg, pose_mrad = unitParser('mdeg', pose, True)
-    
+    #print(pose_mrad)
     try:
 
         poses = [float(n) for n in pose_mq]
 
-        result = cartesian_pose_client(poses[:3], poses[3:])
+        result = cartesian_pose_client(poses[:3], poses[3:], rad_pose=pose_mrad, collision_check=collision_check)
 
-        print('Cartesian pose sent!')
+        #print('Cartesian pose sent!')
 
     except rospy.ROSInterruptException:
         print "program interrupted before completion"
@@ -263,8 +316,46 @@ def go_to_relative(pose):
 
     verboseParser(True, poses)
 
-def go_to_absalute(pose):
-    pass
+def simplify_angle(angle):
+    # Very simple function that makes sure the angles are between -pi and pi
+    if angle > math.pi:
+        while angle > math.pi:
+            angle -= 2*math.pi
+    elif angle < -math.pi:
+        while angle < -math.pi:
+            angle += 2*math.pi
+
+    return angle
+
+def simplify_joints(joints, group_id=0):
+        # Helper function to convert a dictionary of joint values
+        if isinstance(joints, dict):
+            simplified_joints = dict()
+            for joint in joints:
+                # Pull out the name of the joint
+                joint_name = '_'.join(joint.split('_')[1::])
+                simplified_joints[joint] = simplify_angle(joints[joint])
+        elif isinstance(joints, list):
+            simplified_joints = []
+            #separate the joint name from the group name
+            joint_order = map(lambda s: "_".join(s.split("_")[1::]), 
+                              ["j2s7s300_joint_1", "j2s7s300_joint_2", "j2s7s300_joint_3", "j2s7s300_joint_4",
+                        "j2s7s300_joint_5", "j2s7s300_joint_6", "j2s7s300_joint_7"])
+            
+            continuous_joint_indices = [joint_order.index(j) for j in ["joint_1", "joint_2", "joint_3", "joint_4",
+                        "joint_5", "joint_6", "joint_7"]]
+
+            for i in range(len(joints)):
+                a = joints[i]
+                if i in continuous_joint_indices:
+                    simplified_joints.append(simplify_angle(a))
+                else:
+                    simplified_joints.append(a)
+        else:
+            rospy.logerr("Joints must be provided as a list or dictionary")
+            raise TypeError("Joints must be provided as a list or dictionary")
+        return simplified_joints
+
 
 if __name__ == '__main__':
 
@@ -286,7 +377,7 @@ if __name__ == '__main__':
 
     getcurrentCartesianCommand(prefix)
 
-    for i in range(300):
+    """for i in range(300):
         pose = [-0.01, 0.001, 0.0, 0.0, 0.0, 0.0]
 
         pose_mq, pose_mdeg, pose_mrad = unitParser('mdeg', pose, True)
@@ -303,4 +394,4 @@ if __name__ == '__main__':
             print "program interrupted before completion"
 
 
-        verboseParser(True, poses)
+        verboseParser(True, poses)"""

@@ -16,7 +16,7 @@ from scipy.special import expit
 from sklearn.preprocessing import normalize
 
 if __name__ == '__main__':
-    env = env = BalanceToy(stack_size=3, with_pixels=False, max_action=1, max_action_true=40)
+    env = env = BalanceToy(stack_size=3, with_pixels=False, max_action=1, max_action_true=.04)
     agent = Agent(alpha=0.001, beta=0.001, input_dims=env.observation_space[0], env=env, batch_size=128,
             tau=.02, max_size=100000, layer1_size=256, layer2_size=256, n_actions=env.action_space, reward_scale=1, auto_entropy=False)
     n_games = 100

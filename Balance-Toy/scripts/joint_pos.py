@@ -8,8 +8,8 @@ from imutils import contours
 import numpy as np
 import argparse
 import imutils
-from continuous_cartesian import go_to_relative, go_to_absalute#
-from measure_width_utils import get_width_image, get_width, get_max_width, get_total_width
+#from continuous_cartesian import go_to_relative, go_to_absalute#
+#from measure_width_utils import get_width_image, get_width, get_max_width, get_total_width
 from hlpr_manipulation_utils.arm_moveit2 import ArmMoveIt
 from hlpr_manipulation_utils.manipulator import Gripper
 import hlpr_manipulation_utils.transformations as Transform
@@ -35,19 +35,19 @@ def get_IK(pose, arm):
         msgs_request = moveit_msgs.msg.PositionIKRequest()
         msgs_request.group_name = "arm" # name: arm
         msgs_request.robot_state = arm.robot.get_current_state()
-        #msgs_request.robot_state.joint_state.header.frame_id='j2s7s300_link_base'
-        #msgs_request.robot_state.multi_dof_joint_state.header.frame_id='j2s7s300_link_base'
+        msgs_request.robot_state.joint_state.header.frame_id='j2s7s300_link_base'
+        msgs_request.robot_state.multi_dof_joint_state.header.frame_id='j2s7s300_link_base'
         msgs_request.pose_stamped = wkPose
         #msgs_request.ik_link_names = ['j2s7s300_link_1','j2s7s300_link_2',
         #                                'j2s7s300_link_3','j2s7s300_link_4','j2s7s300_link_5','j2s7s300_link_6','j2s7s300_link_7']
         msgs_request.timeout.secs = 2
         msgs_request.avoid_collisions = False
-        #msgs_request.robot_state.is_diff = True
+        msgs_request.robot_state.is_diff = True
         #print(msgs_request)
 
         try:
             jointAngle=compute_ik(msgs_request)
-            print jointAngle
+            #print jointAngle
             ### Made change here from: ans=list(jointAngle.solution.joint_state.position[1:7])
             ans=list(jointAngle.solution.joint_state.position[2:9])
             if jointAngle.error_code.val == -31:
@@ -62,7 +62,7 @@ rospy.init_node("joint_pos", disable_signals=True)
 collison_service = rospy.ServiceProxy('/check_state_validity', GetStateValidity)
 
 arm = ArmMoveIt(planning_frame="j2s7s300_link_base")
-arm = ArmMoveIt(planning_frame="base_link")
+#arm = ArmMoveIt(planning_frame="base_link")
 grip = Gripper()
 
 #joints = arm.get_current_pose()
@@ -85,7 +85,7 @@ joints = {"j2s7s300_joint_1":1.57,
         "j2s7s300_joint_7":-0.456}
 #print(joints)
 #arm.move_to_joint_pose(joints)
-print(arm.robot.get_planning_frame())
+#print(arm.robot.get_planning_frame())
 sorted_joints = [arm.get_current_pose()[x] for x in sorted(arm.get_current_pose())]
 #print(sorted_joints)
 #print(arm.get_current_pose()[sorted(arm.get_current_pose())])
@@ -93,12 +93,12 @@ sorted_joints = [arm.get_current_pose()[x] for x in sorted(arm.get_current_pose(
 #robot_state = arm.state_from_joints(arm.get_current_pose())
 
 pose = arm.get_FK()[0]
-#print pose
+print pose
 
 ik_joints = get_IK(pose, arm)
 #print(ik_joints)
 
-exit()
+#exit()
 ik_joints = {"j2s7s300_joint_1":ik_joints[0], 
         "j2s7s300_joint_2":ik_joints[1], 
         "j2s7s300_joint_3":ik_joints[2], 
@@ -111,7 +111,7 @@ ik_joints = {"j2s7s300_joint_1":ik_joints[0],
 #print(moveit_msgs.srv.GetPositionIK)
 #print(robot_state)
 robot_state = arm.state_from_joints(ik_joints)
-#print(arm.get_FK(state=robot_state)[0])
+print(arm.get_FK(state=robot_state)[0])
 #robot_state.joint_state.name=['j2s7s300_joint_1', 'j2s7s300_joint_2', 'j2s7s300_joint_3', 'j2s7s300_joint_4', 'j2s7s300_joint_5', 'j2s7s300_joint_6', 'j2s7s300_joint_7']
 validityRequest = GetStateValidityRequest()
 validityRequest.robot_state=robot_state
