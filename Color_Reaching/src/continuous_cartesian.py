@@ -9,6 +9,7 @@ import numpy as np
 
 import actionlib
 import kinova_msgs.msg
+from rospy.client import wait_for_message
 import std_msgs.msg
 import geometry_msgs.msg
 import moveit_msgs.srv
@@ -94,8 +95,7 @@ def cartesian_pose_client(position, orientation, rad_pose, collision_check=False
         else:
             client.cancel_all_goals()
             print('        the cartesian action timed-out')
-            return None
-    
+            return None 
     else:
         try:
             cartesian_serv(goal_list[0], goal_list[1], goal_list[2],goal_list[3],goal_list[4],goal_list[5])
@@ -277,7 +277,7 @@ def verboseParser(verbose, pose_mq_):
         print('Cartesian orientation in Euler-XYZ(degree) is: ')
         print('tx {:3.1f}, ty {:3.1f}, tz {:3.1f}'.format(orientation_deg[0], orientation_deg[1], orientation_deg[2]))"""
 
-def go_to_relative(pose, collision_check=False):
+def go_to_relative(pose, collision_check=False, complete_acion=True):
     kinova_robotTypeParser("j2s7s300")
     rospy.init_node(prefix + 'pose_action_client')
 
@@ -303,7 +303,7 @@ def go_to_relative(pose, collision_check=False):
 
         poses = [float(n) for n in pose_mq]
 
-        result = cartesian_pose_client(poses[:3], poses[3:], rad_pose=pose_mrad, collision_check=collision_check)
+        result = cartesian_pose_client(poses[:3], poses[3:], rad_pose=pose_mrad, collision_check=collision_check, wait_for_action=complete_acion)
 
         #print('Cartesian pose sent!')
 

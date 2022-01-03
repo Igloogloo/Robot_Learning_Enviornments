@@ -2,8 +2,13 @@
 
 import numpy as np
 import rospy 
+from sac_torch import Agent
 from hlpr_manipulation_utils.msg import RLTransitionPlusReward
 from hlpr_manipulation_utils.srv import GetActionFromObs, GetActionFromObsResponse
+
+global agent
+agent = Agent(alpha=0.001, beta=0.001, input_dims=env.observation_space[0], env=env, batch_size=128,
+            tau=.02, max_size=100000, layer1_size=256, layer2_size=256, n_actions=env.action_space, reward_scale=1, auto_entropy=False)
 
 def learn():
     pass
