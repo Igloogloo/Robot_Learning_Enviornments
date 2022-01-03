@@ -11,13 +11,13 @@ class Agent():
     def __init__(self, alpha=0.001, beta=0.001, input_dims=[8],
             env=None, gamma=0.99, n_actions=2, max_size=1000000, tau=0.005,
             layer1_size=256, layer2_size=256, batch_size=256, reward_scale=2, auto_entropy=False, 
-            entr_lr=None, reparam_noise=1e-6):
+            entr_lr=None, reparam_noise=1e-6, max_action=1):
         self.gamma = gamma
         self.tau = tau
         self.memory = ReplayBuffer(max_size, input_dims, n_actions)
         self.batch_size = batch_size
         self.n_actions = n_actions
-        self.max_action = env.max_action
+        self.max_action = max_action
         self.env = env
         self.auto_entropy = auto_entropy
         self.actor = ActorNetwork(alpha, input_dims, fc1_dims=layer1_size, fc2_dims=layer2_size, n_actions=n_actions,
@@ -31,7 +31,8 @@ class Agent():
 
         self.scale = reward_scale
         self.update_network_parameters(tau=1)
-        self.target_entropy = -np.prod(self.env.action_space).astype(np.float32)
+        #self.target_entropy = -np.prod(self.env.action_space).astype(np.float32)
+        self.target_entropy = -np.prod(2).astype(np.float32)
         self.log_alpha = torch.zeros(1, requires_grad=True, device=('cuda:0' if torch.cuda.is_available() else 'cpu'))
         if entr_lr is None:
             self.entr_lr = alpha
