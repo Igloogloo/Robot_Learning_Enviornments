@@ -69,6 +69,7 @@ class LookAtColor():
         self.t0 = time.time()
 
         self.moveit = ArmMoveIt()
+        self.rate = rospy.Rate(5) 
         
     def colorImgCB(self, msg):
         if (time.time() - self.t_img < hz): return
@@ -89,9 +90,9 @@ class LookAtColor():
             except Exception as e:
                 rospy.logerr(e)
                 rospy.loginfo("Couldn't calculate center from moment: {}".format(M))
-                self.center = None
+                #self.center = None
                 self.t_img = time.time()
-                return
+                #return
 
             canvas = img.copy()
             cv2.circle(canvas, self.center, 50, (255,255,255), -1)
@@ -110,7 +111,7 @@ class LookAtColor():
         # rospy.loginfo("aligned depth image received. Looking for center {}. Center: {}.".format(self.center, depth))
 
         # we now have (1) the center of the blob in pixel coords and (2) the depth of the blob. User the camera intrinsics to grab the 3D point associated with it.
-        if (self.intrinsics):
+        if(self.intrinsics):
             point = rs2.rs2_deproject_pixel_to_point(self.intrinsics, [self.center[0], self.center[1]], depth)
             point = [entry / 1000. for entry in point] # get in meters
 
@@ -161,7 +162,37 @@ class LookAtColor():
                         (0,0,0,1),
                         rospy.Time.now(), "lookat_camera", camera_frame)
                     self.poi_pub.publish(poi)
-                    rospy.sleep(.05)
+                    # rospy.sleep(.05)
+                    #self.rate.sleep()
+
+                    #ISS: added update. Before it would stop publishing after looking at a stationary object 
+                    point = rs2.rs2_deproject_pixel_to_point(self.intrinsics, [self.center[0], self.center[1]], depth)
+                    point = [entry / 1000. for entry in point] # get in meters
+
+                    pan_increment = 0.0
+                    tilt_increment = 0.0
+                    pan_centered = False
+                    tilt_centered = False
+
+                    w = 0.
+                    h = 0.
+                    thresh_w = 0.1
+                    thresh_h = 0.1 
+
+                    # rospy.loginfo("{}".format(point))
+                    if (point[0] > (w + thresh_w)):
+                        pan_increment = -p_inc
+                    elif (point[0] < (w - thresh_w)):
+                        pan_increment = p_inc
+                    else:
+                        pan_centered = True
+
+                    if (point[1] > (h + thresh_h)):
+                        tilt_increment = t_inc
+                    elif (point[1] < (h - thresh_h)):
+                        tilt_increment = -t_inc
+                    else:
+                        tilt_centered = True
 
         self.t_Dimg = time.time()
 

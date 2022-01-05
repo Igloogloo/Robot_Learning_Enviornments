@@ -277,9 +277,12 @@ def verboseParser(verbose, pose_mq_):
         print('Cartesian orientation in Euler-XYZ(degree) is: ')
         print('tx {:3.1f}, ty {:3.1f}, tz {:3.1f}'.format(orientation_deg[0], orientation_deg[1], orientation_deg[2]))"""
 
-def go_to_relative(pose, collision_check=False, complete_acion=True):
+def go_to_relative(pose, collision_check=False, complete_action=True):
     kinova_robotTypeParser("j2s7s300")
-    rospy.init_node(prefix + 'pose_action_client')
+    try:
+        rospy.init_node(prefix + 'pose_action_client')
+    except:
+        pass
 
     """if args.unit == 'mq':
         if len(args.pose_value) != 7:
@@ -303,7 +306,7 @@ def go_to_relative(pose, collision_check=False, complete_acion=True):
 
         poses = [float(n) for n in pose_mq]
 
-        result = cartesian_pose_client(poses[:3], poses[3:], rad_pose=pose_mrad, collision_check=collision_check, wait_for_action=complete_acion)
+        result = cartesian_pose_client(poses[:3], poses[3:], rad_pose=pose_mrad, collision_check=collision_check, wait_for_action=complete_action)
 
         #print('Cartesian pose sent!')
 

@@ -3,7 +3,7 @@
 import os, time
 
 from numpy.lib.shape_base import column_stack 
-import rospy
+import rospy, tf
 from scipy.spatial import distance as dist
 from imutils import perspective
 from imutils import contours
@@ -17,10 +17,14 @@ from hlpr_manipulation_utils.manipulator import Gripper
 import hlpr_manipulation_utils.transformations as Transform
 from hlpr_manipulation_utils.msg import RLTransitionPlusReward
 from hlpr_manipulation_utils.srv import GetActionFromObs
-from geometry_msgs.msg import Pose, PoseStamped
-from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Pose, PoseStamped, Vector3, Point, Quaternion
+import actionlib
+from kinova_msgs.msg import ArmJointAnglesGoal, ArmJointAnglesAction
 
 current_object_pos = None
+arm_frame = "j2s7s300_link_base"
+camera_frame = "camera_color_optical_frame"
+client = actionlib.SimpleActionClient('/j2s7s300_driver/joints_action/joint_angles', ArmJointAnglesAction)
 
 def update_object_pos(object_pose):
     pos = object_pose.pose.position
@@ -32,18 +36,39 @@ def go_to_start(arm, pose=None, start=False):
         os.system('rosservice call /j2s7s300_driver/in/home_arm')
     if pose is None:
         target = Pose()
-        target.position.x = .52067
-        target.position.y = .3734
-        target.position.z = .09771
-        target.orientation.x = .7127
-        target.orientation.y = -.0259
-        target.orientation.z = .7009
-        target.orientation.w = .0019
-        target.orientation.x, target.orientation.y, target.orientation.z = Transform.euler_from_quaternion([.7127, -.0259,.7009, .0019])
+        target.position.x = 0.06439
+        target.position.y = -0.4431
+        target.position.z = 0.02324
+        target.orientation.x = 0.7092844
+        target.orientation.y = -0.70425379
+        target.orientation.z = 0.029602
+        target.orientation.w = -0.008121
+        target.orientation.x, target.orientation.y, target.orientation.z = Transform.euler_from_quaternion([target.orientation.x, 
+                                                                                    target.orientation.y,target.orientation.z, target.orientation.w])
+        # joints: 1.088973027899044, 2.266060868363049, 3.729168814371174, 1.2807426640427695, 5.403782350992303, 3.7993063574717194, 2.244924690371635
     else:
         target = Pose()
+    joints = {"j2s7s300_joint_1":1.088, "j2s7s300_joint_2":2.268163, "j2s7s300_joint_3":3.7316721, "j2s7s300_joint_4":1.280286,
+                 "j2s7s300_joint_5":5.4074, "j2s7s300_joint_6":3.80056, "j2s7s300_joint_7":2.246956}
 
-    arm.move_to_ee_pose(target)
+    # client.wait_for_server()
+    # goal = ArmJointAnglesGoal()
+
+    # goal.angles.joint1 = 1.088
+    # goal.angles.joint2 = 2.266
+    # goal.angles.joint3 = 3.729
+    # goal.angles.joint4 = 1.28
+    # goal.angles.joint5 = 5.40
+    # goal.angles.joint6 = 3.799
+    # goal.angles.joint7 = 2.244
+    # print(goal.angles)
+    # #print(goal.angles)
+    # client.send_goal(goal)
+    # client.wait_for_result()
+
+    #arm.move_to_ee_pose(target)
+    arm.move_to_joint_pose(joints)
+    # actionlib.(joints)
     orig = arm.get_FK()
     #print(arm.get_FK())
     time.sleep(3)
@@ -79,24 +104,25 @@ class ColorReacher():
         self.action_space = n_actions
         self.sparse_rewards = sparse_rewards
         self.success_threshold = success_threshold
+        self.tf_listener = tf.TransformListener()
         if with_pixels:
             # TODO
             # image = next(self.image_gen)
             # image_list = np.array([image for _ in range(self.stack_size)])
             # self.observation_space = image_list.shape
-            self.observation_space = [15]
+            self.observation_space = [16]
         else:
-            self.observation_space = [15]
+            self.observation_space = [16]
 
         #self.arm.move_to_joint_pose([1.320531, 2.054955, -0.168523, 4.035109, 3.233114, 4.227190, 4.636301])
         time.sleep(1)
-        self.grip.open()
+        #self.grip.open()
         self.grip.close()
-        go_to_start(self.arm, self.reset_pose, start=True)
+        go_to_start(self.arm, self.reset_pose, start=False)
         
         #self.grip.open()
-        time.sleep(5)
-        self.grip.close(block=False)
+        #time.sleep(5)
+        #self.grip.close(block=False)
 
         self.cur_time = time.time()
         self.total_time = time.time()
@@ -110,16 +136,30 @@ class ColorReacher():
 
         curr_joints = self.arm.get_current_pose()
         curr_joints = curr_joints.values()
-        curr_ee_pose = self.arm.get_FK()
+        curr_ee_pose = self.arm.get_FK()[0]
+        curr_ee_pose = [curr_ee_pose.pose.position.x, curr_ee_pose.pose.position.y, curr_ee_pose.pose.position.z,curr_ee_pose.pose.orientation.x,  
+                                                            curr_ee_pose.pose.orientation.y, curr_ee_pose.pose.orientation.z]
 
         global current_object_pos
         while current_object_pos is None:
             print("Object has not been detected")
             object_pos = rospy.wait_for_message('/aabl/poi', PoseStamped, timeout=.1)
-            pos = object_pos.pose.postion
+            object_cameraFrame = PoseStamped()
+            # p = point
+            q = Quaternion()
+            q.x = 0 #rot[0]
+            q.y = 0 #rot[1]
+            q.z = 0 #rot[2]
+            q.w = 1. #rot[3]
+            object_cameraFrame.pose.position = object_pos.pose.position
+            object_cameraFrame.pose.orientation = q
+            object_cameraFrame.header.frame_id = camera_frame
+            goal_armFrame = self.tf_listener.transformPose(arm_frame, object_cameraFrame)
+            pos = goal_armFrame.pose.postion
+            # NOT SURE IF TF IS RIGHT
             current_object_pos = [pos.x, pos.y, pos.z]
-
-        return np.concatenate((current_object_pos,np.concatenate(curr_joints, curr_ee_pose)))
+        obs = np.concatenate((curr_joints, curr_ee_pose))
+        return np.concatenate((obs, current_object_pos,))
 
     def step(self, action, complete_action=False, action_duration=0.05, check_collisions=True):
         """
@@ -142,6 +182,7 @@ class ColorReacher():
 
         #TODO: It is not exactly clear if the way the max action is being used here is correct
         action = np.minimum(np.array(action), self.max_action_true)
+        action = [action[0], action[1],0,0,0,0]
 
         if complete_action:
             go_to_relative(action, collision_check=check_collisions, complete_action=True)
@@ -151,7 +192,8 @@ class ColorReacher():
         
         obs = self.get_obs()
         eep_xyz_pose = obs[7:10]
-        obj_pose = obs[13:-1]
+        obj_pose = obs[13:]
+        print(eep_xyz_pose, obj_pose)
         obj_distance = np.linalg.norm(eep_xyz_pose-obj_pose)
         done = (obj_distance < self.success_threshold) or (time.time() - self.cur_time > self.episode_time)
 

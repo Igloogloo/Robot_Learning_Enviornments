@@ -26,7 +26,7 @@ class PokePoint():
         self.object_tf_pub_src = tf.TransformBroadcaster()
         self.object_tf_pub_target = tf.TransformBroadcaster()
     
-    def pointCB(self, msg): # TODO: we know this is in camera frame but it should come in as PointStamped
+    def pointCB(self, msg): # TODO: we know this is in camera frame but it should come in as PointStamped.
         print("got point")
         p = msg.pose.position
         goal_camera = PoseStamped()
