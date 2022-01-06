@@ -8,20 +8,23 @@ from hlpr_manipulation_utils.srv import GetActionFromObs, GetActionFromObsRespon
 
 # TODO: make agent parameters passable
 global agent
-agent = Agent(alpha=0.001, beta=0.001, input_dims=15, batch_size=128,
-            tau=.02, max_size=100000, layer1_size=256, layer2_size=256, n_actions=2, reward_scale=1, 
+agent = Agent(alpha=0.001, beta=0.001, input_dims=16, batch_size=128,
+            tau=.02, max_size=100000, layer1_size=256, layer2_size=256, n_actions=2, reward_scale=2, 
             max_action=1, auto_entropy=False)
 
 #def learn():
 #    agent.learn
 
 def store_transition_and_learn(data):
+    print("STORING")
     old_observation = data.old_observation
     action = data.action
     reward = data.reward
     observation = data.observation
     done = data.done
-    agent.remember(old_observation, action, reward, observation, done)
+    global agent
+    info = agent.remember(old_observation, action, reward[0], observation, done[0])
+    print(info)
     agent.learn()
 
 def action_callback(observation):

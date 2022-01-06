@@ -162,7 +162,7 @@ class LookAtColor():
                         (0,0,0,1),
                         rospy.Time.now(), "lookat_camera", camera_frame)
                     self.poi_pub.publish(poi)
-                    # rospy.sleep(.05)
+                    rospy.sleep(.05)
                     #self.rate.sleep()
 
                     #ISS: added update. Before it would stop publishing after looking at a stationary object 

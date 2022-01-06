@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import os
+import os, rospy
 import torch 
 import torch.nn.functional as F
 import numpy as np
@@ -48,6 +48,7 @@ class Agent():
 
     def remember(self, state, action, reward, new_state, done):
         self.memory.store_transition(state, action, reward, new_state, done)
+        return("remembered")
 
     def update_network_parameters(self, tau=None):
         if tau is None:
@@ -82,6 +83,7 @@ class Agent():
         self.critic_2.load_checkpoint()
 
     def learn(self, update_params=True):
+        print("LEARNING")
         if(self.auto_entropy):
             if self.memory.mem_cntr < self.batch_size:
                 return

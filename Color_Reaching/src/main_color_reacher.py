@@ -13,8 +13,7 @@ def get_action(observation):
     try:
         service = rospy.ServiceProxy('get_action', GetActionFromObs)
         resp1 = service(observation)
-        print(resp1.action)
-        return resp1
+        return resp1.action
     except rospy.ServiceException as e:
         print("Service call failed: %s"%e)
 
@@ -24,11 +23,16 @@ def main_loop():
     rewards = []
     score_history = []
     load_checkpoint = False
+    best_score = -1000
 
     env_interacts = 0
 
     transition_publisher = rospy.Publisher('rl_transition', RLTransitionPlusReward, queue_size=10)
-    rospy.init_node('transition', anonymous=True)
+    
+    try:
+        rospy.init_node('transition', anonymous=True)
+    except:
+        print("Transition publisher not started")
     rate = rospy.Rate(100) # 10hz
 
     print("Initiating Enviornment")
@@ -48,18 +52,18 @@ def main_loop():
             score += reward
             print(reward, "REWARD")
             print(observation, "OBS")
-
+            print(done, "DONE")
             transition = RLTransitionPlusReward()
             old_obs = observation
             action = action
             new_obs = new_observation
             reward = reward
             done = done
-            transition.old_observation = old_obs
+            transition.old_observation = list(old_obs)
             transition.action = action
-            transition.observation = new_obs
-            transition.reward = reward
-            transition.done = done
+            transition.observation = list(new_obs)
+            transition.reward = [reward]
+            transition.done = [done]
             transition_publisher.publish(transition)
             
             observation = new_observation

@@ -74,8 +74,8 @@ def go_to_start(arm, pose=None, start=False):
     time.sleep(3)
 
 class ColorReacher():
-    def __init__(self, with_pixels=False, max_action=1, n_actions=2, reset_pose=None, episode_time=60, stack_size=4, max_action_true=10,
-                    sparse_rewards=False, success_threshold=.01):
+    def __init__(self, with_pixels=False, max_action=1, n_actions=2, reset_pose=None, episode_time=60, stack_size=4, max_action_true=.05,
+                    sparse_rewards=False, success_threshold=.1):
         """
             with_pixels = True to learn from overhead camera
             max_action: the maximum degree the robot can rotate in xyz cartesian space
@@ -88,7 +88,10 @@ class ColorReacher():
             success_threshold: the minimum distance for the object to have been considered reached
             (TODO: test a good success_threshold)
         """
-        rospy.init_node("color_reacher", disable_signals=True)
+        try:
+            rospy.init_node("color_reacher", disable_signals=True)
+        except:
+            pass
         rospy.Subscriber("/aabl/poi", PoseStamped, update_object_pos, queue_size=1)
 
         self.arm = ArmMoveIt("j2s7s300_link_base")
@@ -161,7 +164,7 @@ class ColorReacher():
         obs = np.concatenate((curr_joints, curr_ee_pose))
         return np.concatenate((obs, current_object_pos,))
 
-    def step(self, action, complete_action=False, action_duration=0.05, check_collisions=True):
+    def step(self, action, complete_action=False, action_duration=0.5, check_collisions=True):
         """
             Robot will execute given action. returns: new observation, reward, done, and episode elapsed time
             
@@ -174,6 +177,9 @@ class ColorReacher():
                   a collison.
         """
 
+        action = np.array(action)
+        print(action, "ACTION")
+        print(np.shape(action), "SHAPE")
         if not np.shape(action)[0] == self.n_actions:
             raise ValueError("Action shpae dimensionality mismatch: recieved %x, need %s" % (np.shape(action)[0], self.n_actions))
         if np.isnan(action).any():
@@ -181,7 +187,8 @@ class ColorReacher():
             action = np.zeros_like(action)
 
         #TODO: It is not exactly clear if the way the max action is being used here is correct
-        action = np.minimum(np.array(action), self.max_action_true)
+        #action = np.minimum(np.array(action), self.max_action_true)
+        action = action*self.max_action_true
         action = [action[0], action[1],0,0,0,0]
 
         if complete_action:
@@ -196,6 +203,7 @@ class ColorReacher():
         print(eep_xyz_pose, obj_pose)
         obj_distance = np.linalg.norm(eep_xyz_pose-obj_pose)
         done = (obj_distance < self.success_threshold) or (time.time() - self.cur_time > self.episode_time)
+        print("DISTANCE ", obj_distance)
 
         if self.sparse_rewards:
             if obj_distance < self.success_threshold:
@@ -209,6 +217,8 @@ class ColorReacher():
 
     def reset(self):
         go_to_start(self.arm, self.reset_pose, start=False)
+        self.grip.open()
+        self.grip.close()
         self.cur_time = time.time()
         obs = self.get_obs()
         if self.with_pixels:
