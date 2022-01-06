@@ -79,10 +79,10 @@ def cartesian_pose_client(position, orientation, rad_pose, collision_check=False
             ans = simplify_joints(ans)
             if jointAngle.error_code.val == -31:
                 print('No IK solution')
-                return None
+                return -31
             if (jointAngle.error_code.val == -12 or jointAngle.error_code.val==-10):
                 print("Goal or current position is in collision")
-                return None
+                return -12
                 
         except rospy.ServiceException as e:
             print("Service call failed: %s"%e)
@@ -315,6 +315,7 @@ def go_to_relative(pose, collision_check=False, complete_action=True):
 
 
     verboseParser(True, poses)
+    return result
 
 def simplify_angle(angle):
     # Very simple function that makes sure the angles are between -pi and pi

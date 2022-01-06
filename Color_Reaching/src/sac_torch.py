@@ -44,7 +44,6 @@ class Agent():
     def choose_action(self, observation):
         state = torch.Tensor([observation]).to(self.actor.device)
         actions, _ = self.actor.sample_normal(state, reparameterize=False)
-        print(actions, "ACT")
         return actions.cpu().detach().numpy()[0]
 
     def remember(self, state, action, reward, new_state, done):

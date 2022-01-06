@@ -16,15 +16,13 @@ agent = Agent(alpha=0.001, beta=0.001, input_dims=16, batch_size=128,
 #    agent.learn
 
 def store_transition_and_learn(data):
-    print("STORING")
     old_observation = data.old_observation
     action = data.action
     reward = data.reward
     observation = data.observation
     done = data.done
     global agent
-    info = agent.remember(old_observation, action, reward[0], observation, done[0])
-    print(info)
+    agent.remember(old_observation, action, reward[0], observation, done[0])
     agent.learn()
 
 def action_callback(observation):

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os, time
+import re
 
 from numpy.lib.shape_base import column_stack 
 import rospy, tf
@@ -22,11 +23,20 @@ import actionlib
 from kinova_msgs.msg import ArmJointAnglesGoal, ArmJointAnglesAction
 
 current_object_pos = None
-arm_frame = "j2s7s300_link_base"
-camera_frame = "camera_color_optical_frame"
+arm_frame = "/j2s7s300_link_base"
+camera_frame = "/camera_color_optical_frame"
 client = actionlib.SimpleActionClient('/j2s7s300_driver/joints_action/joint_angles', ArmJointAnglesAction)
 
+
+
 def update_object_pos(object_pose):
+    tf_listener = tf.TransformListener()
+    object_pose.header.frame_id = "/camera_color_optical_frame"
+    tf_listener.waitForTransform(arm_frame, camera_frame, rospy.Time(0), rospy.Duration(4.0))
+    try:
+        object_pose = tf_listener.transformPose(arm_frame, object_pose)
+    except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+        pass
     pos = object_pose.pose.position
     global current_object_pos
     current_object_pos = [pos.x, pos.y, pos.z]
@@ -75,7 +85,7 @@ def go_to_start(arm, pose=None, start=False):
 
 class ColorReacher():
     def __init__(self, with_pixels=False, max_action=1, n_actions=2, reset_pose=None, episode_time=60, stack_size=4, max_action_true=.05,
-                    sparse_rewards=False, success_threshold=.1):
+                    sparse_rewards=False, success_threshold=.07):
         """
             with_pixels = True to learn from overhead camera
             max_action: the maximum degree the robot can rotate in xyz cartesian space
@@ -139,7 +149,9 @@ class ColorReacher():
 
         curr_joints = self.arm.get_current_pose()
         curr_joints = curr_joints.values()
-        curr_ee_pose = self.arm.get_FK()[0]
+        #curr_ee_pose = self.arm.get_FK()[0]
+        curr_ee_pose = rospy.wait_for_message('/j2s7s300_driver/out/tool_pose', PoseStamped)
+        print("CURR POSE:", curr_ee_pose.pose)
         curr_ee_pose = [curr_ee_pose.pose.position.x, curr_ee_pose.pose.position.y, curr_ee_pose.pose.position.z,curr_ee_pose.pose.orientation.x,  
                                                             curr_ee_pose.pose.orientation.y, curr_ee_pose.pose.orientation.z]
 
@@ -192,9 +204,9 @@ class ColorReacher():
         action = [action[0], action[1],0,0,0,0]
 
         if complete_action:
-            go_to_relative(action, collision_check=check_collisions, complete_action=True)
+            result = go_to_relative(action, collision_check=check_collisions, complete_action=True)
         else:
-            go_to_relative(action, collision_check=check_collisions, complete_action=False)
+            result = go_to_relative(action, collision_check=check_collisions, complete_action=False)
             rospy.sleep(action_duration)
         
         obs = self.get_obs()
@@ -205,14 +217,17 @@ class ColorReacher():
         done = (obj_distance < self.success_threshold) or (time.time() - self.cur_time > self.episode_time)
         print("DISTANCE ", obj_distance)
 
-        if self.sparse_rewards:
-            if obj_distance < self.success_threshold:
-                reward = 0
-            else: 
-                reward = -1
+        if result == -31 or result == -12: # Robor likely collided or reached boundary 
+            reward = -100
         else:
-            reward = obj_distance
-        
+            if self.sparse_rewards:
+                if obj_distance < self.success_threshold:
+                    reward = 0
+                else: 
+                    reward = -1
+            else:
+                reward = -obj_distance
+            
         return obs, reward, done, (time.time()-self.cur_time)
 
     def reset(self):

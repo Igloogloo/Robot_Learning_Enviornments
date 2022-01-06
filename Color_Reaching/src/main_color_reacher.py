@@ -5,6 +5,7 @@ import numpy as np
 from hlpr_manipulation_utils.msg import RLTransitionPlusReward
 from hlpr_manipulation_utils.srv import GetActionFromObs
 from color_reacher import ColorReacher
+from kinova_msgs.srv import ClearTrajectories
 
 # Function that will qeuery the model for an action
 def get_action(observation):
@@ -39,16 +40,19 @@ def main_loop():
     env = ColorReacher()
     
     for episode in range(n_games):
+        rospy.wait_for_service("/j2s7s300_driver/in/clear_trajectories")
+        rospy.ServiceProxy('/j2s7s300_driver/in/clear_trajectories', ClearTrajectories).call()
         observation = env.reset()
         observation = np.array(observation)
         done = False
         score = 0
+        rospy.sleep(1)
         while not rospy.is_shutdown() and not done:
             env_interacts += 1
             action = get_action(observation)
+            print(action)
             new_observation, reward, done, info = env.step(action)
             new_observation = np.array(new_observation)
-
             score += reward
             print(reward, "REWARD")
             print(observation, "OBS")
