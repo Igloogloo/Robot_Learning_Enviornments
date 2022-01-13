@@ -2,6 +2,7 @@
 
 import rospy
 import numpy as np
+import time
 from hlpr_manipulation_utils.msg import RLTransitionPlusReward
 from hlpr_manipulation_utils.srv import GetActionFromObs
 from color_reacher import ColorReacher
@@ -20,9 +21,10 @@ def get_action(observation):
 
 def main_loop():
 
-    n_games = 100
+    n_games = 200
     rewards = []
     score_history = []
+    time_history = []
     load_checkpoint = False
     best_score = -1000
 
@@ -38,6 +40,8 @@ def main_loop():
 
     print("Initiating Enviornment")
     env = ColorReacher()
+
+    time_start = time.time()
     
     for episode in range(n_games):
         rospy.wait_for_service("/j2s7s300_driver/in/clear_trajectories")
@@ -47,6 +51,7 @@ def main_loop():
         done = False
         score = 0
         rospy.sleep(1)
+        time_history.append((time.time()-time_start))
         while not rospy.is_shutdown() and not done:
             env_interacts += 1
             action = get_action(observation)
@@ -84,6 +89,9 @@ def main_loop():
 
         print('episode ', episode, 'score %.1f' % score, 'avg_score %.1f' % avg_score)
 
+    np.save("rewards.npy", rewards)
+    np.save("time_history.npy", time_history)
+    
 if __name__ == '__main__':
     try:
         main_loop()

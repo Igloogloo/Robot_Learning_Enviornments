@@ -166,16 +166,18 @@ class LookAtColor():
                     #self.rate.sleep()
 
                     #ISS: added update. Before it would stop publishing after looking at a stationary object 
-                    point = rs2.rs2_deproject_pixel_to_point(self.intrinsics, [self.center[0], self.center[1]], depth)
-                    point = [entry / 1000. for entry in point] # get in meters
-
-                    pan_increment = 0.0
-                    tilt_increment = 0.0
+                    try:
+                        point = rs2.rs2_deproject_pixel_to_point(self.intrinsics, [self.center[0], self.center[1]], depth)
+                        point = [entry / 1000. for entry in point] # get in meters
+                    except Exception as e:
+                        print(e)
+                    #pan_increment = 0.0
+                    #tilt_increment = 0.0
                     pan_centered = False
                     tilt_centered = False
 
-                    w = 0.
-                    h = 0.
+                    #w = 0.
+                    #h = 0.
                     thresh_w = 0.1
                     thresh_h = 0.1 
 

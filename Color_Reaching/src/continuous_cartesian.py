@@ -17,7 +17,7 @@ from tf.transformations import euler_from_quaternion
 import math
 import argparse
 from kinova_msgs.srv import AddPoseToCartesianTrajectory, ClearTrajectories
-
+from hlpr_manipulation_utils.arm_moveit2 import ArmMoveIt
 """ Global variable """
 arm_joint_number = 0
 finger_number = 0
@@ -25,7 +25,6 @@ prefix = 'NO_ROBOT_TYPE_DEFINED_'
 finger_maxDist = 18.9/2/1000  # max distance for one finger
 finger_maxTurn = 6800  # max thread rotation for one finger
 currentCartesianCommand = [0.212322831154, -0.257197618484, 0.509646713734, 1.63771402836, 1.11316478252, 0.134094119072] # default home in unit mq
-
 
 def cartesian_pose_client(position, orientation, rad_pose, collision_check=False, wait_for_action=False):
     # if wait_for_action the robot will preform the action till completion the stop.
@@ -67,7 +66,7 @@ def cartesian_pose_client(position, orientation, rad_pose, collision_check=False
         msgs_request.group_name = "arm"
         msgs_request.pose_stamped = goal_stamped
         msgs_request.robot_state.is_diff = True
-        msgs_request.timeout.secs = 2
+        msgs_request.timeout.secs = .4
         msgs_request.avoid_collisions = True
         msgs_request.ik_link_names = ["j2s7s300_joint_1", "j2s7s300_joint_2", "j2s7s300_joint_3", "j2s7s300_joint_4",
                         "j2s7s300_joint_5", "j2s7s300_joint_6", "j2s7s300_joint_7"]

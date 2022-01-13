@@ -30,7 +30,7 @@ client = actionlib.SimpleActionClient('/j2s7s300_driver/joints_action/joint_angl
 
 
 def update_object_pos(object_pose):
-    tf_listener = tf.TransformListener()
+    """tf_listener = tf.TransformListener()
     object_pose.header.frame_id = "/camera_color_optical_frame"
     tf_listener.waitForTransform(arm_frame, camera_frame, rospy.Time(0), rospy.Duration(4.0))
     try:
@@ -40,6 +40,10 @@ def update_object_pos(object_pose):
     pos = object_pose.pose.position
     global current_object_pos
     current_object_pos = [pos.x, pos.y, pos.z]
+    print(current_object_pos)"""
+    global current_object_pos
+    current_object_pos = [0.52460022312947552, -0.39611079364874163, -0.046926779282331132]
+    #current_object_pos = [0.04907, -0.03977, 0.789]
 
 def go_to_start(arm, pose=None, start=False):
     if start is True:
@@ -85,7 +89,7 @@ def go_to_start(arm, pose=None, start=False):
 
 class ColorReacher():
     def __init__(self, with_pixels=False, max_action=1, n_actions=2, reset_pose=None, episode_time=60, stack_size=4, max_action_true=.05,
-                    sparse_rewards=False, success_threshold=.07):
+                    sparse_rewards=False, success_threshold=.08):
         """
             with_pixels = True to learn from overhead camera
             max_action: the maximum degree the robot can rotate in xyz cartesian space
@@ -131,7 +135,7 @@ class ColorReacher():
         time.sleep(1)
         #self.grip.open()
         self.grip.close()
-        go_to_start(self.arm, self.reset_pose, start=False)
+        go_to_start(self.arm, self.reset_pose, start=True)
         
         #self.grip.open()
         #time.sleep(5)
@@ -145,6 +149,7 @@ class ColorReacher():
         pass
         
     def get_obs(self):
+        global current_object_pos
         # Return dicrete observation:[arm joints, eef pose, position of object]
 
         curr_joints = self.arm.get_current_pose()
@@ -156,7 +161,7 @@ class ColorReacher():
                                                             curr_ee_pose.pose.orientation.y, curr_ee_pose.pose.orientation.z]
 
         global current_object_pos
-        while current_object_pos is None:
+        if current_object_pos is None:
             print("Object has not been detected")
             object_pos = rospy.wait_for_message('/aabl/poi', PoseStamped, timeout=.1)
             object_cameraFrame = PoseStamped()
@@ -176,7 +181,7 @@ class ColorReacher():
         obs = np.concatenate((curr_joints, curr_ee_pose))
         return np.concatenate((obs, current_object_pos,))
 
-    def step(self, action, complete_action=False, action_duration=0.5, check_collisions=True):
+    def step(self, action, complete_action=False, action_duration=0.3, check_collisions=True):
         """
             Robot will execute given action. returns: new observation, reward, done, and episode elapsed time
             
@@ -202,12 +207,13 @@ class ColorReacher():
         #action = np.minimum(np.array(action), self.max_action_true)
         action = action*self.max_action_true
         action = [action[0], action[1],0,0,0,0]
-
+        t0 = time.time()
         if complete_action:
             result = go_to_relative(action, collision_check=check_collisions, complete_action=True)
         else:
             result = go_to_relative(action, collision_check=check_collisions, complete_action=False)
             rospy.sleep(action_duration)
+        rospy.loginfo("go_to_relative took %s " % (time.time()-t0))
         
         obs = self.get_obs()
         eep_xyz_pose = obs[7:10]
@@ -217,17 +223,21 @@ class ColorReacher():
         done = (obj_distance < self.success_threshold) or (time.time() - self.cur_time > self.episode_time)
         print("DISTANCE ", obj_distance)
 
-        if result == -31 or result == -12: # Robor likely collided or reached boundary 
-            reward = -100
+        #if result == -31 or result == -12: # Robor likely collided or reached boundary 
+        #    reward = -100
+        #else:
+        if self.sparse_rewards:
+            if obj_distance < self.success_threshold:
+                reward = 0
+            else: 
+                reward = -1
         else:
-            if self.sparse_rewards:
-                if obj_distance < self.success_threshold:
-                    reward = 0
-                else: 
-                    reward = -1
-            else:
-                reward = -obj_distance
-            
+            reward = -obj_distance
+            if obj_distance < self.success_threshold:
+                reward+=1
+        
+        if result == -31 or result == -12: # Robor likely collided or reached boundary 
+            reward -= 2
         return obs, reward, done, (time.time()-self.cur_time)
 
     def reset(self):
