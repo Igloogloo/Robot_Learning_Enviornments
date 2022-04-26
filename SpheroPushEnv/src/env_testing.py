@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
-from color_reacher import ColorReacher
+from sphero_push import SpheroPush
 
-env = ColorReacher()
+env = SpheroPush(home_arm=False)
 
 obs = env.reset()
 print(obs)

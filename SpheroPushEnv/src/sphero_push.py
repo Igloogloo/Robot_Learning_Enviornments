@@ -87,7 +87,7 @@ def go_to_start(arm, pose=None, start=False):
     #print(arm.get_FK())
     time.sleep(3)
 
-class ColorReacher():
+class SpheroPush():
     def __init__(self, with_pixels=False, max_action=1, n_actions=2, reset_pose=None, episode_time=60, stack_size=4, max_action_true=.05,
                     sparse_rewards=False, success_threshold=.08, home_arm=True):
         """
@@ -149,37 +149,38 @@ class ColorReacher():
         pass
         
     def get_obs(self):
-        global current_object_pos
-        # Return dicrete observation:[arm joints, eef pose, position of object]
+        # global current_object_pos
+        # # Return dicrete observation:[arm joints, eef pose, position of object]
 
-        curr_joints = self.arm.get_current_pose()
-        curr_joints = curr_joints.values()
-        #curr_ee_pose = self.arm.get_FK()[0]
-        curr_ee_pose = rospy.wait_for_message('/j2s7s300_driver/out/tool_pose', PoseStamped)
-        print("CURR POSE:", curr_ee_pose.pose)
-        curr_ee_pose = [curr_ee_pose.pose.position.x, curr_ee_pose.pose.position.y, curr_ee_pose.pose.position.z,curr_ee_pose.pose.orientation.x,  
-                                                            curr_ee_pose.pose.orientation.y, curr_ee_pose.pose.orientation.z]
+        # curr_joints = self.arm.get_current_pose()
+        # curr_joints = curr_joints.values()
+        # #curr_ee_pose = self.arm.get_FK()[0]
+        # curr_ee_pose = rospy.wait_for_message('/j2s7s300_driver/out/tool_pose', PoseStamped)
+        # print("CURR POSE:", curr_ee_pose.pose)
+        # curr_ee_pose = [curr_ee_pose.pose.position.x, curr_ee_pose.pose.position.y, curr_ee_pose.pose.position.z,curr_ee_pose.pose.orientation.x,  
+        #                                                     curr_ee_pose.pose.orientation.y, curr_ee_pose.pose.orientation.z]
 
-        global current_object_pos
-        if current_object_pos is None:
-            print("Object has not been detected")
-            object_pos = rospy.wait_for_message('/aabl/poi', PoseStamped, timeout=.1)
-            object_cameraFrame = PoseStamped()
-            # p = point
-            q = Quaternion()
-            q.x = 0 #rot[0]
-            q.y = 0 #rot[1]
-            q.z = 0 #rot[2]
-            q.w = 1. #rot[3]
-            object_cameraFrame.pose.position = object_pos.pose.position
-            object_cameraFrame.pose.orientation = q
-            object_cameraFrame.header.frame_id = camera_frame
-            goal_armFrame = self.tf_listener.transformPose(arm_frame, object_cameraFrame)
-            pos = goal_armFrame.pose.postion
-            # NOT SURE IF TF IS RIGHT
-            current_object_pos = [pos.x, pos.y, pos.z]
-        obs = np.concatenate((curr_joints, curr_ee_pose))
-        return np.concatenate((obs, current_object_pos,))
+        # global current_object_pos
+        # if current_object_pos is None:
+        #     print("Object has not been detected")
+        #     object_pos = rospy.wait_for_message('/aabl/poi', PoseStamped, timeout=.1)
+        #     object_cameraFrame = PoseStamped()
+        #     # p = point
+        #     q = Quaternion()
+        #     q.x = 0 #rot[0]
+        #     q.y = 0 #rot[1]
+        #     q.z = 0 #rot[2]
+        #     q.w = 1. #rot[3]
+        #     object_cameraFrame.pose.position = object_pos.pose.position
+        #     object_cameraFrame.pose.orientation = q
+        #     object_cameraFrame.header.frame_id = camera_frame
+        #     goal_armFrame = self.tf_listener.transformPose(arm_frame, object_cameraFrame)
+        #     pos = goal_armFrame.pose.postion
+        #     # NOT SURE IF TF IS RIGHT
+        #     current_object_pos = [pos.x, pos.y, pos.z]
+        # obs = np.concatenate((curr_joints, curr_ee_pose))
+        # return np.concatenate((obs, current_object_pos,))
+        return -1
 
     def step(self, action, complete_action=False, action_duration=0.3, check_collisions=True):
         """
