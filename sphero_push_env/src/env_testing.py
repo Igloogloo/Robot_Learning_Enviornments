@@ -6,11 +6,13 @@ from sphero_push import SpheroPush
 from kinova_msgs.msg import ArmPoseAction
 from sphero_interface.msg import ObsMessage
 import numpy as np
+from rl_movement_utils import cartesian_velocity_req
+
 rospy.init_node("aaaa")
 observation = rospy.wait_for_message("/rl_observation", ObsMessage)
 observation = np.array(observation.obs)
-print(observation)
-# env = SpheroPush(home_arm=True)
+#print(observation)
+env = SpheroPush(home_arm=True)
 
 # obs = env.reset()
 # print(obs)

@@ -21,17 +21,19 @@ def eef_update(data):
     current_observation[8:11] = eef_pose
 
 def sphero_pose_update(data):
-    pass
+    sphero_pose = [data.x, data.y]
+    current_observation[11:13] = sphero_pose
 
-def rate_testing(data):
-    status = data.header.seq
-    current_observation[12] = status
+# def rate_testing(data):
+#     status = data.header.seq
+#     current_observation[12] = status
 
 def observationPublisher():
     pub = rospy.Publisher('rl_observation', ObsMessage, queue_size=1)
     rospy.Subscriber("/joint_states", JointState, callback=joint_update)
     rospy.Subscriber("/j2s7s300_driver/out/tool_pose", PoseStamped, callback=eef_update)
-    rospy.Subscriber("/move_group/status", GoalStatusArray, callback=rate_testing)
+    #rospy.Subscriber("/move_group/status", GoalStatusArray, callback=rate_testing)
+    rospy.Subscriber("/red_sphero_cord", Point, callback=sphero_pose_update)
     rospy.init_node('observation_pub', anonymous=True)
     rate = rospy.Rate(1000) # 10hz
     while not rospy.is_shutdown():

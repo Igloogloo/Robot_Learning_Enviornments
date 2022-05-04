@@ -140,7 +140,7 @@ class SpheroPush():
         
         #self.grip.open()
         #time.sleep(5)
-        #self.grip.close(block=False)
+        self.grip.close(block=True)
 
         self.cur_time = time.time()
         self.total_time = time.time()

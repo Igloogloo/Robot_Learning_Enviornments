@@ -30,8 +30,8 @@ def main():
             continue
         image_message = bridge.cv2_to_imgmsg(frame, encoding="passthrough")
         #print(image_message.height, image_message.width)
-        #if cv2.waitKey(10) & 0xFF == ord("q"): 
-        #    break
+        if cv2.waitKey(10) & 0xFF == ord("q"): 
+            break
         rospy.sleep(.01)
         #key = cv2.waitKey(1000)
 
