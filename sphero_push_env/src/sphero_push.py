@@ -11,7 +11,7 @@ from imutils import contours
 import numpy as np
 import argparse
 import imutils
-from continuous_cartesian import go_to_relative
+from rl_movement_utils import go_to_relative, cartesian_velocity_req
 from measure_width_utils import get_width_image, get_width, get_max_width, get_total_width
 from hlpr_manipulation_utils.arm_moveit2 import ArmMoveIt
 from hlpr_manipulation_utils.manipulator import Gripper
@@ -22,6 +22,7 @@ from geometry_msgs.msg import Pose, PoseStamped, Vector3, Point, Quaternion
 import actionlib
 from kinova_msgs.msg import ArmJointAnglesGoal, ArmJointAnglesAction
 from sphero_interface.msg import ObsMessage
+from std_msgs.msg import Bool
 
 current_object_pos = None
 arm_frame = "/j2s7s300_link_base"
@@ -108,6 +109,9 @@ class SpheroPush():
         except:
             pass
         
+        # Hard coded boundry:
+        self.x_boundry = [0,10]
+        self.y_boundry = [0,10]
 
         self.arm = ArmMoveIt("j2s7s300_link_base")
         self.grip = Gripper()
@@ -154,7 +158,7 @@ class SpheroPush():
         observation = np.array(observation.obs)
         return observation
 
-    def step(self, action, complete_action=False, action_duration=0.3, check_collisions=True):
+    def step(self, action, complete_action=False, action_duration=0.3, velocity_action=False, check_collisions=True):
         """
             Robot will execute given action. returns: new observation, reward, done, and episode elapsed time
             
@@ -162,7 +166,8 @@ class SpheroPush():
                 - if "complete_action" is true, the robot will preform the entire action specified,
                   stop, and then return the obs. Else, it will store the action in a buffer of actions
                   to execute and return an observation after "action_duration" seconds (allows for 
-                  smoother movement but more noise in observations).
+                  smoother movement but more noise in observations). if "velocity_action" is true
+                  then the robot will do a velocity action with the speicified duration.
                 - if "check_collisions" is true, the robot will only take actions that dont result in 
                   a collison.
         """
@@ -181,42 +186,59 @@ class SpheroPush():
         action = action*self.max_action_true
         action = [action[0], action[1],0,0,0,0]
         t0 = time.time()
+
+        cur_pose = rospy.wait_for_message("js27s_300/out/tool_pose", PoseStamped)
+        cur_pose = [cur_pose.position.x, cur_pose.postion.y]
+
+        if not velocity_action:
+            diff_pose = cur_pose+action
+            if diff_pose[0] <= self.x_boundry[0] or diff_pose >= self.x_boundry[1]:
+                action[0] = 0.0
+            if diff_pose[0] <= self.y_boundry[0] or diff_pose >= self.y_boundry[1]:            
+                action[1] = 0.0
+        else:
+            diff_pose = cur_pose+action_duration*action
+            if diff_pose[0] <= self.x_boundry[0] or diff_pose >= self.x_boundry[1]:
+                action[0] = 0.0
+            if diff_pose[0] <= self.y_boundry[0] or diff_pose >= self.y_boundry[1]:            
+                action[1] = 0.0
+
         if complete_action:
             result = go_to_relative(action, collision_check=check_collisions, complete_action=True)
         else:
+            if velocity_action:
+                result = cartesian_velocity_req(action, action_duration, check_collisions, duration_timeout=0)
+                rospy.sleep(action_duration-.01)
             result = go_to_relative(action, collision_check=check_collisions, complete_action=False)
             rospy.sleep(action_duration)
         rospy.loginfo("go_to_relative took %s " % (time.time()-t0))
         
         obs = self.get_obs()
-        eep_xyz_pose = obs[7:10]
-        obj_pose = obs[13:]
-        print(eep_xyz_pose, obj_pose)
-        obj_distance = np.linalg.norm(eep_xyz_pose-obj_pose)
-        done = (obj_distance < self.success_threshold) or (time.time() - self.cur_time > self.episode_time)
-        print("DISTANCE ", obj_distance)
+        
 
         #if result == -31 or result == -12: # Robor likely collided or reached boundary 
         #    reward = -100
         #else:
-        if self.sparse_rewards:
-            if obj_distance < self.success_threshold:
-                reward = 0
-            else: 
-                reward = -1
-        else:
-            reward = -obj_distance
-            if obj_distance < self.success_threshold:
-                reward+=1
+        # if self.sparse_rewards:
+        #     if obj_distance < self.success_threshold:
+        #         reward = 0
+        #     else: 
+        #         reward = -1
+        # else:
+        #     reward = -obj_distance
+        #     if obj_distance < self.success_threshold:
+        #         reward+=1
         
+        done = rospy.wait_for_message("/rl_done", Bool)
+
         if result == -31 or result == -12: # Robor likely collided or reached boundary 
             reward -= 2
         return obs, reward, done, (time.time()-self.cur_time)
 
     def reset(self):
         go_to_start(self.arm, self.reset_pose, start=False)
-        self.grip.open()
-        self.grip.close()
+        #self.grip.open()
+        #self.grip.close()
         self.cur_time = time.time()
         obs = self.get_obs()
         if self.with_pixels:
